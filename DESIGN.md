@@ -16,6 +16,22 @@ Develop an open-source, versioned R package that converts spatially varying vect
 
 The package is intended to bridge entomological data and maps, mechanistic malaria models, geospatial burden models, and interpretable decision-support outputs. It supports, but does not replace, models of downstream cases, deaths, cost-effectiveness, or intervention allocation.
 
+### 1.1 The package in plain terms
+
+The rest of this document is written for implementers. In outline, the package is a calculator with swappable parts:
+
+- **The parts.** Each biological step — how much larval habitat exists, how many adult mosquitoes that supports, how long they live, when and where they bite, what a bed net does to them — is a separate model with declared inputs and outputs. There can be several competing implementations of any step (§6).
+- **The recipe.** A *preset* is a named, versioned list of which implementation to use for each step. `va_v1` is the first. A recipe can be inspected before it is run, and a part can be swapped — but the result is then labelled a modified recipe, not the original (§6.2, §6.3).
+- **The calculator.** The engine runs the chosen parts in order to produce vectorial capacity: a number per place, per time, per species. It has two halves. The first — climate, habitat, mosquito population, abundance — does not depend on which interventions are deployed, so it runs once. The second — biting, nets and spraying, survival, capacity — runs once per scenario on top of it (§6.0).
+- **The comparison.** Compute capacity for the world as it is and for the world with a proposed intervention; the drop between them is the vector control impact (§5.3).
+- **The paperwork.** Every result records which parts, which versions, which data and which assumptions produced it, so any number can be traced back (§9).
+- **The maps.** The calculator itself knows nothing about geography. It works on arrays of numbers indexed by place. Separate adapters turn rasters or district boundaries into those arrays and turn the answers back into maps (§7.1, §7.1.1).
+
+Two workloads are representative, and both use the same array structures (§7.1.1):
+
+- a single deterministic calculation across districts for two scenarios, which is the common case and should complete in seconds once district-level parameters are prepared;
+- a multi-draw calculation at pixel level, which is among the most computationally demanding uses of the framework.
+
 ## 2. Product principles
 
 - **Scientifically explicit:** every result records equations, assumptions, component implementations, parameter sources, units, and versions.
@@ -151,11 +167,11 @@ Each component implementation is registered with:
 - uncertainty support;
 - maturity: `experimental`, `candidate`, `stable`, or `deprecated`.
 
-Compatibility between components is **derived** from the declared inputs, outputs, units, dimensions, and ranges above: two components compose if what one produces satisfies what the next requires. It is not maintained as a hand-written list of compatible pairs. With many component types and several implementations of each, a pairwise matrix would require an edit to every existing component whenever one was added, and any entry left stale would silently either block a valid combination or admit an invalid one.
+A component is defined by its **declared inputs and outputs**, named against the shared variable dictionary (§7.2), together with the parameter definitions it requires. That declaration is the interface: it is what the registry stores, what the engine dispatches on, and what the extension guide (§12) documents. An implementation is a vectorised function over arrays (§7.1.1) plus its registration record.
 
-Explicitly declared incompatibility is retained as an escape hatch for combinations that are dimensionally valid but scientifically incoherent, and which therefore cannot be detected from the declarations alone. Keeping it to the exceptions is what keeps it short enough to stay correct.
+Compatibility between components is therefore **derived** rather than enumerated: two components compose if what one produces satisfies what the next requires, in the right units and over the right dimensions. It is not maintained as a hand-written list of compatible pairs. With many component types and several implementations of each, a pairwise matrix would require an edit to every existing component whenever one was added, and any entry left stale would silently either block a valid combination or admit an invalid one.
 
-The form a component implementation takes in R — function, S3 class, or object — is an open decision recorded in §16. It must be settled before the registry or the extension guide (§12) can be written.
+Declared incompatibility remains valuable for combinations that are dimensionally valid but scientifically incoherent, which cannot be detected from the declarations alone. It is **advisory**: such combinations are documented and warned about, not blocked. A user who deliberately composes a non-default set of components has taken on responsibility for its coherence, and the package's obligation is to make the consequences visible — through the warning and through hybrid labelling (§6.3) — rather than to prevent the composition. Dimensional and unit invalidity is a different matter and is still rejected outright.
 
 Proposed component types:
 
@@ -193,9 +209,9 @@ A preset must be inspectable before execution. Model names alone are insufficien
 Advanced users may replace components within a preset. The package must:
 
 1. display changed assumptions;
-2. run compatibility validation;
+2. run compatibility validation, derived from the declared inputs and outputs (§6.1);
 3. reject dimensionally or logically invalid combinations;
-4. flag scientifically unvalidated combinations;
+4. warn on combinations declared scientifically incompatible, or otherwise unvalidated, without blocking them — responsibility for a deliberately non-default composition rests with the user;
 5. visibly label outputs as hybrid, not as reproductions of the named source model.
 
 ## 7. Data contracts
@@ -216,7 +232,20 @@ Inputs should be normalised to explicit dimensions, as applicable:
 
 Spatial geometry is attached through a separate keyed object. This prevents hidden raster alignment and makes the engine usable for rasters, polygons, points, and non-spatial tests.
 
-The in-memory representation of a variable over these dimensions — array versus long table — determines whether the performance targets in §11 are attainable at national and continental scale. It is recorded as an open decision in §16.
+### 7.1.1 Array representation
+
+Variables are held in the core as **arrays over named dimensions**, not as long tables. Long tables are accepted and emitted at the boundaries, where users think in rows.
+
+The reason is scale. Nigeria at 5 km is roughly 37,000 pixels; over twelve months, three species, two scenarios, and one hundred draws that is around 266 million values, or about 2 GB per variable as a numeric array and several times that as a long table carrying index columns. Africa-wide at the same resolution is of the order of 70 GB per variable. A long-format core cannot meet the §11 targets at national scale.
+
+The same array structures serve the full range of workloads without a second code path. A single deterministic calculation across districts for two scenarios — the common case — is the same object with several dimensions of length one, and should run in seconds once district-level parameters are prepared.
+
+Two design constraints follow, and both bind on how components are written rather than on the engine alone:
+
+- **Each cell is independent.** A component computes a value from other values at the same index. Nothing in the core requires a component to see across locations, times, or draws. Where a calculation genuinely is sequential — population dynamics over time is the obvious case — that dependency is confined to the one dimension it acts along and declared as such.
+- **Components are vectorised across whole arrays**, not written as scalar functions applied elementwise.
+
+Together these mean a single R implementation of each component can be executed either by base R array arithmetic or, unchanged, by an array backend that parallelises across cells. Dimension order should be chosen with that in mind rather than left to whatever the first implementation happens to produce, since reordering later is a change to every component. Backend support itself is future work and out of scope for v1; see issue #39.
 
 ### 7.2 Typed variables
 
@@ -340,6 +369,13 @@ Equivalence claims must define tolerances and the external software version/comm
 Stored test cases only detect a misread equation if their expected values were derived from the equations rather than from the code. Where the same person or agent both implements a component and computes its expected values from the same reading of the specification, a misreading is reproduced in both and the test confirms it rather than catching it. Expected values must be derived from `EQUATION_DECISIONS.md` and the source documents, independently of `R/`.
 
 ## 11. Performance and deployment
+
+Two workloads are representative, and both use the same array structures (§7.1.1):
+
+- **The common case:** a single deterministic calculation across districts for two scenarios. This should complete in seconds on a standard laptop once district-level parameters have been prepared, and is the workload most analyst usage will consist of.
+- **The demanding case:** a multi-draw calculation at pixel level, which is among the most computationally expensive applications of the framework.
+
+Sizing decisions should be made against the first, not only the second. A design that is acceptable only at pixel-and-draw scale risks making the common case slower and more memory-hungry than it needs to be.
 
 - Prototype national scenario calculations should complete in seconds to minutes on a standard laptop for typical administrative-area workflows.
 - Large raster/cube workflows should support chunking, lazy loading, and optional parallelism without changing results.
@@ -476,8 +512,7 @@ The contractual target for the R package and most VCI outputs is 1 February 2029
 11. Compatibility policy for hybrid component selection.
 12. Minimum viable dashboard/integration API.
 13. Accessibility, localisation, and offline-use requirements for country users.
-14. **Core in-memory data representation: array over named dimensions, or long table.** This decides whether the §11 performance targets are attainable. Nigeria at 5 km is roughly 37,000 pixels; over twelve months, three species, two scenarios, and one hundred draws that is around 266 million values, or about 2 GB per variable as a numeric array and several times that as a long table carrying index columns. Africa-wide at the same resolution is roughly 1.2 million pixels, so of the order of 70 GB per variable. A long-format core cannot meet "seconds to minutes on a standard laptop" at national scale. An array core can, but relocates alignment and dimension bookkeeping into the engine, which must then be designed rather than assumed. The recommendation is arrays in the core with long tables accepted and emitted at the boundaries, but the choice constrains every component and should be made deliberately.
-15. **The form of a component implementation in R:** function plus registration record, S3 class, or object with a compute method. The registry (§6.1) and the extension guide (§12) both depend on the answer. Explicit lookup in the registry is likely preferable to S3 dispatch on user-supplied identifiers, which would add indirection without benefit and lengthen the path between a reported number and the equation that produced it.
+14. Dimension order of the core arrays, chosen to suit array-backend execution (§7.1.1).
 
 ## 17. Proposed supporting repository documents
 
