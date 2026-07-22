@@ -105,6 +105,10 @@ We use the `usethis` pull-request flow:
   is in progress so CI runs without notifying reviewers; mark ready when done.
 - The PR body must contain `Fixes #<issue-number>` (or `Refs #<n>` if partial).
 - One logical change per PR. Keep them reviewable.
+- **Commit the session log before marking the PR ready.** `dev/sessions/<file>.md`
+  is rewritten by the Stop hook at the end of every turn, but is never staged for
+  you. An uncommitted log means the prompts behind the change never reach the
+  reviewer, which defeats the point. CI fails the PR if it is missing.
 
 ## Collaboration (two maintainers)
 
