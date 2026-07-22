@@ -1,0 +1,38 @@
+# Fails a pull request that does not add a Claude Code session log.
+#
+# The prompts behind an agent-produced change are meant to travel with the
+# change (see README, "The role of AI in this package"). The Stop hook writes
+# the log continuously, but nothing stages it, so the omission is silent
+# without this check.
+#
+# Human-authored PRs have no session log. Add the `no-session-log` label to
+# skip the check, which makes "this was written by a person" an explicit,
+# visible claim rather than a silent absence.
+
+name: session-log
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled, ready_for_review]
+
+jobs:
+  session-log:
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.pull_request.labels.*.name, 'no-session-log')"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check for a session log
+        run: |
+          base="origin/${{ github.base_ref }}"
+          if git diff --name-only --diff-filter=AM "$base...HEAD" \
+            | grep -qE '^dev/sessions/.+\.md$'; then
+            echo "Session log present."
+          else
+            echo "::error::No session log found in dev/sessions/."
+            echo "Commit the log written by the Stop hook, or add the"
+            echo "'no-session-log' label if this PR was written by a human."
+            exit 1
+          fi
