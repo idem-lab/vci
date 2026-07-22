@@ -1,0 +1,9 @@
+^dev$
+^\.claude$
+^DESIGN\.md$
+^MATHEMATICAL_SPEC_WORKING\.md$
+^README\.Rmd$
+^\.github$
+^LICENSE\.md$
+^.*\.Rproj$
+^\.Rproj\.user$
