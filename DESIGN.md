@@ -122,6 +122,19 @@ These are **candidate v1 equations**, not frozen requirements. Every implemented
 
 ## 6. Component architecture
 
+### 6.0 Two-stage execution
+
+Components divide into two stages, and the division is architectural rather than incidental:
+
+- **Intervention-independent:** microclimate, larval habitat, aquatic and adult population dynamics, abundance per human, attempted feeding rate, and parasite development. None of these depend on which interventions are deployed.
+- **Intervention-dependent:** host encounter and redistribution, intervention effects, successful human biting, adult survival, and the capacity equation.
+
+Every scenario in a comparison shares the whole of the first stage. The engine must compute it once and reuse it across scenarios, rather than recomputing per scenario. Population dynamics are expected to dominate runtime, so for a baseline plus three intervention scenarios this is most of the work.
+
+The requirement is as much about correctness as speed. Uncertainty draws must be paired across scenarios, or the uncertainty reported on `VCI` is inflated by the between-scenario variation that in reality cancels. Computing and reusing a shared first stage makes that pairing structural rather than something each component must remember to preserve.
+
+This split also gives the natural boundary for caching and for chunked evaluation of large rasters (§11).
+
 ### 6.1 Registry
 
 Each component implementation is registered with:
@@ -133,9 +146,16 @@ Each component implementation is registered with:
 - required and optional inputs;
 - output names, units, dimensions, and valid ranges;
 - assumptions and known limitations;
-- compatible and incompatible component IDs;
+- execution stage: intervention-independent or intervention-dependent (§6.0);
+- declared incompatibilities, as an exception only (see below);
 - uncertainty support;
 - maturity: `experimental`, `candidate`, `stable`, or `deprecated`.
+
+Compatibility between components is **derived** from the declared inputs, outputs, units, dimensions, and ranges above: two components compose if what one produces satisfies what the next requires. It is not maintained as a hand-written list of compatible pairs. With many component types and several implementations of each, a pairwise matrix would require an edit to every existing component whenever one was added, and any entry left stale would silently either block a valid combination or admit an invalid one.
+
+Explicitly declared incompatibility is retained as an escape hatch for combinations that are dimensionally valid but scientifically incoherent, and which therefore cannot be detected from the declarations alone. Keeping it to the exceptions is what keeps it short enough to stay correct.
+
+The form a component implementation takes in R — function, S3 class, or object — is an open decision recorded in §16. It must be settled before the registry or the extension guide (§12) can be written.
 
 Proposed component types:
 
@@ -188,10 +208,15 @@ Inputs should be normalised to explicit dimensions, as applicable:
 - `time`
 - `species`
 - `scenario`
-- `intervention`
 - `draw`
 
+`intervention` is deliberately **not** a canonical dimension. A scenario contains a set of interventions, so capacity, abundance, survival, and VCI are properties of the scenario as a whole and carry no meaningful intervention index. Interventions are described within the scenario specification (§7.3). Where a diagnostic genuinely attributes an effect to an individual intervention, that is a specific output with its own shape, not a global axis.
+
+`time` denotes an interval with an explicit duration and calendar, not an instant. Almost every modelled quantity is a rate or a probability defined over an interval, and the requirement that results be invariant to the chosen time unit cannot be tested without knowing what a time index represents.
+
 Spatial geometry is attached through a separate keyed object. This prevents hidden raster alignment and makes the engine usable for rasters, polygons, points, and non-spatial tests.
+
+The in-memory representation of a variable over these dimensions — array versus long table — determines whether the performance targets in §11 are attainable at national and continental scale. It is recorded as an open decision in §16.
 
 ### 7.2 Typed variables
 
@@ -228,18 +253,23 @@ model <- vc_model(preset = "va_v1")
 inspect_model(model)
 validate_inputs(vector_data, scenarios, model)
 
-result <- compute_vci(
+capacity <- compute_capacity(
   model = model,
   vector_data = vector_data,
   scenarios = scenarios,
-  reference = "status_quo",
   uncertainty = "draws"
 )
+
+result <- compute_vci(capacity, reference = "status_quo")
 
 plot(result, quantity = "vci_percent")
 write_vci(result, path = "outputs/")
 provenance(result)
 ```
+
+Capacity and the scenario comparison are separate steps. Two of the six user archetypes in §3 — the vector scientist inspecting biological plausibility, and the mechanistic modeller requesting parameter layers — want capacity and its intermediates without any comparison, and §1 lists baseline parameters and baseline capacity as deliverables in their own right. A single call from data to VCI would oblige those users to run a comparison they do not want.
+
+Separating the steps also places the reference-scenario semantics (§5.3) in one explicit function rather than in an argument threaded through the whole calculation, and gives the requirement that draws be paired across scenarios a single place to be enforced.
 
 Advanced composition:
 
@@ -274,6 +304,10 @@ A `vc_result` contains:
 - spatial/temporal metadata;
 - machine-readable export manifest.
 
+Metadata, diagnostics, and uncertainty summaries are held eagerly; draws are held lazily. Everything in the list above except the draws is small, while draws over a national raster are of the order of gigabytes per variable. Requiring the whole object to be resident in order to call `provenance()` or print a summary would make routine inspection impractical.
+
+Accordingly, the on-disk layout written by `write_vci()` is a first-class format rather than an export of an in-memory object, and the in-memory result may be a handle onto it. This serves the dashboard and non-R integration requirement in §11 directly, and makes chunked evaluation of large rasters a natural consequence of the result design rather than something added on top of it.
+
 ## 10. Validation and testing
 
 ### 10.1 Scientific invariants
@@ -293,15 +327,17 @@ At minimum:
 
 - unit tests for equations and validators;
 - analytic edge cases;
-- golden fixtures signed off by scientists;
+- stored test cases whose correct answers were worked out independently of the implementation and signed off by a scientist;
 - comparison tests against independent calculations;
-- cross-implementation fixtures for OpenMalaria, malariasimulation, EMOD, and VCOM presets;
+- cross-implementation test cases for OpenMalaria, malariasimulation, EMOD, and VCOM presets;
 - spatial alignment and aggregation tests;
 - uncertainty propagation tests;
 - performance tests on representative national rasters;
 - end-to-end vignettes.
 
-Equivalence claims must define tolerances and the external software version/commit used to create fixtures.
+Equivalence claims must define tolerances and the external software version/commit used to create the test cases.
+
+Stored test cases only detect a misread equation if their expected values were derived from the equations rather than from the code. Where the same person or agent both implements a component and computes its expected values from the same reading of the specification, a misreading is reproduced in both and the test confirms it rather than catching it. Expected values must be derived from `EQUATION_DECISIONS.md` and the source documents, independently of `R/`.
 
 ## 11. Performance and deployment
 
@@ -310,6 +346,31 @@ Equivalence claims must define tolerances and the external software version/comm
 - Core engine should avoid hard dependency on a web service.
 - Package should work offline when users provide local inputs. Default layer retrieval may require a separate download/cache adapter.
 - Use serialisable configuration and result formats suitable for `plumber`, Shiny, or non-R reimplementation.
+
+### 11.1 Reproducibility under parallelism
+
+"Without changing results" is not automatic for stochastic calculations. If draws are taken from a single sequential random number stream, their values depend on evaluation order, and evaluation order depends on how work was divided between workers — so the same seed gives different answers on a different machine, or after a change to chunk size.
+
+Each draw's seed must therefore be derived deterministically from a root seed and the draw index, so that the value of a draw depends on nothing but the root seed. Stated now this is a one-line constraint on the uncertainty engine; discovered later it is an intermittent, hard-to-attribute irreproducibility in published results.
+
+### 11.2 Error reporting
+
+Validation is pervasive (§2, §6.3, §7.4, §10.1) and the form of its failures is part of the public interface:
+
+- Failures are signalled as classed conditions, so that a caller — particularly a dashboard or a script — can distinguish incompatible units from incompatible components from misaligned rasters programmatically, rather than by matching message text.
+- Input validation accumulates problems and reports them together rather than stopping at the first. A user supplying a national dataset with many issues should see them in one pass, not discover them one run at a time.
+
+### 11.3 API stability
+
+Integration is invited from Phase 3 (§14), well before the stable release targeted for mid-2028. Integrators therefore need a per-function statement of stability rather than having to infer it from the version number or discover it through breakage.
+
+Public functions carry an explicit lifecycle stage from the first release, with the whole public API marked experimental initially. Promotion to stable is a deliberate act, recorded in `NEWS.md`, and thereafter constrains what may change without a major version. The lifecycle and deprecation policy in §12 documents the guarantees each stage carries.
+
+### 11.4 Provenance cost
+
+§9 requires input provenance and checksums. Hashing multi-gigabyte rasters on every run is slow enough that users would disable it, which defeats its purpose.
+
+The policy must therefore state what is hashed and when: file-level hashes recorded once at ingestion rather than recomputed per run, with source identity and modification time recorded as a documented fallback where hashing is impractical. It must also define behaviour for lazily-loaded inputs that reference files which may have changed since the reference was created, which is the normal case with `terra`.
 
 ## 12. Documentation
 
@@ -356,7 +417,7 @@ The contractual target for the R package and most VCI outputs is 1 February 2029
 ### Phase 1: executable scientific kernel, October–December 2026
 
 - implement capacity equation, species aggregation, VCI comparison, typed tabular inputs, validation, and provenance;
-- create independent golden fixtures;
+- create test cases whose correct answers are worked out independently of the implementation;
 - publish an internal `0.1.0` prototype.
 
 ### Phase 2: VA v1 vertical slice, January–June 2027
@@ -415,6 +476,8 @@ The contractual target for the R package and most VCI outputs is 1 February 2029
 11. Compatibility policy for hybrid component selection.
 12. Minimum viable dashboard/integration API.
 13. Accessibility, localisation, and offline-use requirements for country users.
+14. **Core in-memory data representation: array over named dimensions, or long table.** This decides whether the §11 performance targets are attainable. Nigeria at 5 km is roughly 37,000 pixels; over twelve months, three species, two scenarios, and one hundred draws that is around 266 million values, or about 2 GB per variable as a numeric array and several times that as a long table carrying index columns. Africa-wide at the same resolution is roughly 1.2 million pixels, so of the order of 70 GB per variable. A long-format core cannot meet "seconds to minutes on a standard laptop" at national scale. An array core can, but relocates alignment and dimension bookkeeping into the engine, which must then be designed rather than assumed. The recommendation is arrays in the core with long tables accepted and emitted at the boundaries, but the choice constrains every component and should be made deliberately.
+15. **The form of a component implementation in R:** function plus registration record, S3 class, or object with a compute method. The registry (§6.1) and the extension guide (§12) both depend on the answer. Explicit lookup in the registry is likely preferable to S3 dispatch on user-supplied identifiers, which would add indirection without benefit and lengthen the path between a reported number and the equation that produced it.
 
 ## 17. Proposed supporting repository documents
 
