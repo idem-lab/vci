@@ -47,7 +47,10 @@ Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 # On the default branch, a log-only commit is allowed straight to `main`, so
 # push it. Elsewhere, leave it for the branch's PR to carry.
 branch="$(git rev-parse --abbrev-ref HEAD)"
-default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+# `|| true`: origin/HEAD is often unconfigured locally, so the probe fails; under
+# `set -e` + pipefail that would abort the script before the push. Fall back to
+# `main` when it cannot be determined.
+default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##' || true)"
 [ -n "$default" ] || default="main"
 
 if [ "$branch" = "$default" ]; then

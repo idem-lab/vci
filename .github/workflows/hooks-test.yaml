@@ -26,3 +26,5 @@ jobs:
         run: jq --version
       - name: Run the session-log hook test
         run: bash .claude/hooks/test-log-session.sh
+      - name: Run the session-log sweep test
+        run: bash .claude/hooks/test-sweep-session-logs.sh
