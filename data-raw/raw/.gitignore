@@ -1,0 +1,7 @@
+# Large source rasters live here but are NOT committed — they are cropped and
+# summarised to the small, committed district-level object by
+# ../rwanda_inputs.R. Track this folder (via .gitignore and README.md) but
+# ignore its data contents.
+*
+!.gitignore
+!README.md
