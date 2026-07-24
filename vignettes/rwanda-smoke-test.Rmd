@@ -1,0 +1,238 @@
+---
+title: "Milestone 0: Rwanda district-level VCI smoke test"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Milestone 0: Rwanda district-level VCI smoke test}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+# Only build the figures if the suggested plotting packages are available.
+buildable <- requireNamespace("ggplot2", quietly = TRUE) &&
+  requireNamespace("sf", quietly = TRUE) &&
+  requireNamespace("patchwork", quietly = TRUE)
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  eval = buildable,
+  fig.align = "center",
+  fig.width = 7.2,
+  fig.height = 4.3,
+  dpi = 300,
+  out.width = "100%"
+)
+```
+
+> **⚠️ Illustrative only — not a real analysis.**
+> This vignette is the Milestone 0 *smoke test*: an end-to-end run built to shake
+> out architecture and integration problems *before* the science is signed off.
+> It uses ballpark parameters and a deliberately crude, clearly-labelled stub for
+> the intervention effects. **Its numbers must not be read as findings about
+> malaria, vectors, or bed nets in Rwanda.**
+
+## What this computes
+
+Vector control impact (VCI) — the proportional reduction in vectorial capacity —
+across the districts (GADM admin-2) of Rwanda, comparing three scenarios:
+
+- **No intervention** — the reference;
+- **Business-as-usual (BAU)** — current net use, assumed all **pyrethroid** LLIN;
+- **Alternative** — the same net use, but all nets replaced with **dual-AI** LLIN.
+
+The inputs are the packaged [`rwanda_inputs`] dataset: district-level abundance
+for the three primary vectors (*An. gambiae*, *An. arabiensis*, *An. funestus*),
+pyrethroid susceptibility, and 2024 net use, with ballpark bionomics.
+
+```{r setup}
+library(vci)
+
+inputs <- rwanda_inputs
+inputs
+```
+
+```{r plot-helpers}
+library(ggplot2)
+library(sf) # for the geometry merge and geom_sf()
+library(patchwork) # for side-by-side panels with independent colour scales
+
+districts <- inputs$geometry
+near_white <- "#f7f7f7"
+
+# A clean choropleth of one value column, on a near-white -> `high` gradient.
+district_map <- function(data, column, low, high, legend,
+                         percent = FALSE, limits = NULL, breaks = waiver()) {
+  labels <- if (percent) function(x) paste0(x, "%") else waiver()
+  ggplot(merge(districts, data, by = "location_id")) +
+    geom_sf(aes(fill = .data[[column]]), colour = "grey70", linewidth = 0.12) +
+    scale_fill_gradient(
+      low = low, high = high, name = legend,
+      labels = labels, limits = limits, breaks = breaks
+    ) +
+    theme_void(base_size = 11) +
+    theme(
+      plot.title = element_text(face = "bold", hjust = 0.5, margin = margin(b = 6)),
+      strip.text = element_text(face = "bold", margin = margin(t = 4, b = 4)),
+      legend.position = "right"
+    )
+}
+```
+
+## Input data
+
+### Vector abundance by species
+
+Adults per human (`m`) for each of the three vectors, on a shared scale so their
+magnitudes are comparable. *An. gambiae* dominates the west, *An. arabiensis* the
+east and south; *An. funestus* is scarcer throughout.
+
+```{r fig-abundance, fig.width = 8.2, fig.height = 4}
+vectors <- inputs$vectors
+abundance_max <- max(vectors$abundance)
+
+species_map <- function(sp, high) {
+  d <- vectors[vectors$species == sp, c("location_id", "abundance")]
+  district_map(d, "abundance",
+    low = near_white, high = high,
+    legend = "mosquitoes\nper human", limits = c(0, abundance_max)
+  ) +
+    labs(title = sp) +
+    theme(legend.position = "bottom")
+}
+
+(species_map("gambiae", "#2ca25f") |
+  species_map("arabiensis", "#cb181d") |
+  species_map("funestus", "#2171b5")) +
+  plot_annotation(
+    title = "Vector abundance by species",
+    theme = theme(plot.title = element_text(face = "bold", hjust = 0.5))
+  )
+```
+
+### Intervention context
+
+Net use and insecticide susceptibility, both on a 0–100% scale and coloured so
+that **near-white means less protection**: low net use, or low susceptibility
+(i.e. high resistance).
+
+```{r fig-context, fig.width = 8, fig.height = 4}
+sites_df <- inputs$sites
+sites_df$net_use_pct <- 100 * sites_df$net_use
+sites_df$susceptibility_pct <- 100 * sites_df$susceptibility
+
+p_llin <- district_map(sites_df, "net_use_pct",
+  low = near_white, high = "#08519c",
+  legend = "LLIN use", percent = TRUE,
+  limits = c(0, 100), breaks = c(0, 25, 50, 75, 100)
+) +
+  labs(title = "LLIN use (2024)")
+
+p_susc <- district_map(sites_df, "susceptibility_pct",
+  low = near_white, high = "#6a51a3",
+  legend = "Susceptibility", percent = TRUE,
+  limits = c(0, 100), breaks = c(0, 25, 50, 75, 100)
+) +
+  labs(title = "Pyrethroid susceptibility")
+
+p_llin | p_susc
+```
+
+## Running the three scenarios
+
+`compute_capacity()` runs the whole pipeline — intervention stub, host choice,
+survival, the capacity equation, and the species sum — for each scenario, giving
+total vectorial capacity per district.
+
+```{r compute}
+capacity <- compute_capacity(inputs)
+head(capacity)
+```
+
+`vci_by_scenario()` then compares each scenario against a named reference within
+each district.
+
+```{r vci}
+vci_vs_none <- vci_by_scenario(capacity, reference = "none")
+vci_vs_bau <- vci_by_scenario(capacity, reference = "bau")
+
+scenario_labels <- c(
+  none = "No intervention",
+  bau = "BAU: pyrethroid LLIN",
+  alt = "Alternative: dual-AI LLIN"
+)
+label_scenarios <- function(x) factor(scenario_labels[x], levels = scenario_labels)
+```
+
+## Results
+
+### Vectorial capacity under each scenario
+
+Both interventions pull capacity down relative to no intervention, and the
+dual-AI nets pull it down furthest.
+
+```{r fig-capacity, fig.width = 7.6, fig.height = 3.8}
+capacity$panel <- label_scenarios(capacity$scenario)
+
+district_map(capacity, "capacity",
+  low = near_white, high = "#b30000",
+  legend = "Vectorial\ncapacity", limits = c(0, max(capacity$capacity))
+) +
+  facet_wrap(~panel) +
+  labs(title = "Vectorial capacity by district") +
+  theme(plot.title = element_text(
+    face = "bold", hjust = 0.5, margin = margin(b = 16)
+  ))
+```
+
+### VCI of each net against no intervention
+
+Vector control impact as a percentage, on a fixed 0–100% scale. The dual-AI panel
+is much darker: with Rwanda's high pyrethroid resistance, pyrethroid killing is
+weak, while the dual-AI's resistance-independent killing keeps working.
+
+```{r fig-vci-vs-none, fig.width = 7.4, fig.height = 3.8}
+vci_pct <- vci_vs_none[vci_vs_none$scenario != "none", ]
+vci_pct$vci_percent <- 100 * vci_pct$vci
+vci_pct$panel <- label_scenarios(vci_pct$scenario)
+
+district_map(vci_pct, "vci_percent",
+  low = near_white, high = "#00897b",
+  legend = "VCI (%)", percent = TRUE,
+  limits = c(0, 100), breaks = c(0, 25, 50, 75, 100)
+) +
+  facet_wrap(~panel) +
+  labs(title = "Vector control impact vs no intervention")
+```
+
+### Added impact of dual-AI over business-as-usual
+
+Comparing the alternative directly against BAU isolates the extra impact of
+switching pyrethroid nets for dual-AI nets, at the same coverage.
+
+```{r fig-vci-alt-vs-bau, fig.width = 5.8, fig.height = 4.4}
+vci_alt <- vci_vs_bau[vci_vs_bau$scenario == "alt", ]
+vci_alt$vci_percent <- 100 * vci_alt$vci
+
+district_map(vci_alt, "vci_percent",
+  low = near_white, high = "#00897b",
+  legend = "VCI (%)", percent = TRUE,
+  limits = c(0, 100), breaks = c(0, 25, 50, 75, 100)
+) +
+  labs(title = "Extra impact of dual-AI over pyrethroid (alt vs BAU)")
+```
+
+## Notes on the assumptions
+
+- The **intervention effects are a stub** (`intervention_effect_stub()`):
+  plausible round numbers, not a fitted mapping. The one qualitatively real
+  feature is that pyrethroid killing scales with susceptibility (it collapses as
+  resistance rises), whereas dual-AI adds resistance-independent killing.
+- **Host choice.** Host-opportunity weights are derived from the
+  malariasimulation `Q0` (human blood index) and `phi_indoors` under an explicit
+  *equal-host-availability* assumption — `Q0` is treated as preference. This is a
+  simplification adopted deliberately for the smoke test, not a modelling
+  commitment.
+- **Abundance cancels.** Because the interventions here change survival and
+  feeding but not abundance, absolute abundance cancels out of VCI. Only the
+  capacity maps depend on it; the VCI maps do not.
+```
