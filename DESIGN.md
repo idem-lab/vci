@@ -62,8 +62,9 @@ Initial user archetypes will be developed separately. The design must at least s
 - Species-specific vectorial capacity using the Garrett-Jones form.
 - Multiple-species aggregation.
 - Baseline and intervention scenarios.
-- Human biting, adult survival, adult-to-larval ratio/population dynamics, larval habitat, parasite development, species composition, host availability, human indoor presence, and intervention-effect components.
-- Indoor intervention effects separated into deterrence/barrier, killing, and feasible interaction effects.
+- Attempted and successful human biting, adult survival, population dynamics, larval habitat, parasite development and infection, host encounter, human availability, and intervention-effect components (the full set and their execution stages are in §6.1).
+- Intervention effects resolved into the repellency/accessibility, barrier, and killing channels (`R`, `B`, `Kᵉ`).
+- Multiple species handled as a modelling dimension (per-species capacity, summed; §5.2).
 - Larval source management effects.
 - Named intervention types sufficient for prototype LLIN/net types and IRS analyses, with explicit resistance modifiers.
 - Pixel and administrative-area workflows.
@@ -171,23 +172,37 @@ Because the human-readable documentation and the machine-checkable behaviour are
 
 Declared incompatibility remains available for combinations that are dimensionally valid but scientifically incoherent, which cannot be detected from signatures alone. It is **advisory**: such combinations are documented and warned about, not blocked. A user who composes a non-default set of components has taken responsibility for its coherence; the package's job is to make the consequences visible — through the warning and through hybrid labelling (§6.3) — not to prevent the composition. Dimensional and unit invalidity is different and is still rejected outright.
 
-Proposed component types:
+Proposed component types, grouped by execution stage (§6.0). Each is a slot a preset fills with one implementation; the maths-spec section that defines the quantity is cited for reference, and the maths spec ([`MATHEMATICAL_SPEC_WORKING.md`](MATHEMATICAL_SPEC_WORKING.md)) is authoritative for what each produces.
 
-- `species_composition`
-- `larval_habitat`
-- `adult_larval_dynamics`
-- `host_encounter`
-- `human_biting`
-- `adult_survival`
-- `parasite_development`
-- `intervention_deterrence`
-- `intervention_barrier`
-- `intervention_killing`
-- `resistance_modifier`
-- `vector_competence` (optional/future)
-- `capacity_equation`
-- `species_aggregation`
-- `uncertainty_engine`
+Every component is evaluated **per species**: it computes its quantity for a given species (as well as per location and time), and capacity is built per species and summed (§5.2). Species-specific inputs — attraction weights, microclimate responses, biting profiles, and so on — enter the relevant components accordingly.
+
+**Intervention-independent** (computed once per comparison, §6.0):
+
+- `microclimate` — species-specific microclimate driving the temperature-dependent components (maths spec §7);
+- `larval_habitat` — maximum effective larval habitat `L^max` (§5, §9);
+- `population_dynamics` — adult and aquatic-stage dynamics giving adults per unit habitat, from realised habitat and microclimate (§6, §7);
+- `abundance` — adults per human `m`, from `L^max`, adult density, and human population, with temporal aggregation (§8);
+- `attempted_feeding_rate` — the rate `a*` at which a mosquito attempts to blood-feed, before host choice or protection (§10);
+- `biting_profile` — species-specific hourly indoor and outdoor biting-attempt profiles (§12);
+- `infection_probability` — human-to-mosquito infection probability `c` (§2);
+- `parasite_development` — extrinsic incubation period `ν` (§2); may share an implementation with `infection_probability` (e.g. a temperature-dependent model producing both);
+- `baseline_survival` — baseline, climate-dependent adult mortality hazard `μ⁰`, before intervention killing (§17).
+
+**Intervention-dependent** (computed per scenario, §6.0):
+
+- `host_encounter` — host opportunities and pre-intervention destination probabilities (indoor / outdoor / animal), from biting profiles, human availability, and species attraction (§13);
+- `intervention_effect` — maps a deployed intervention or combination to the three effect channels *together*: residual accessibility after repellency `R`, residual feeding success `B`, and pathway-specific residual survival `Kᵉ` (§14);
+- `resistance_modifier` — insecticide-resistance inputs feeding the intervention mapping (§14);
+- `successful_feeding` — successful human blood-feeding rate `a`, assembling `a*` with repellent redistribution, killing, and barrier effects (§15, §16);
+- `adult_survival` — total adult mortality hazard `μ` and survival, combining `μ⁰` with intervention-mediated killing (§17);
+- `capacity_equation` — vectorial capacity `V` from abundance, feeding, infection, survival, and incubation; stationary or trajectory-based (§1, §4, §17.2).
+
+**Cross-cutting:**
+
+- `uncertainty_engine` — propagation of uncertainty by draws or ensemble (the representation is not yet fixed);
+- `vector_competence` — optional/future.
+
+There is deliberately no `species_composition` or `species_aggregation` component — allocating abundance to species is upstream input preparation, and the per-species sum is fixed engine logic, not a swappable model. The earlier flat list also carried a single `human_biting` type (now split into `attempted_feeding_rate` `a*` and `successful_feeding` `a`, since the two differ and `a` is squared in capacity) and separate `intervention_deterrence` / `intervention_barrier` / `intervention_killing` types (now the one `intervention_effect`, since the maths spec has a single intervention model produce `R`, `B`, `Kᵉ` together with no generic per-channel combination rule).
 
 ### 6.2 Presets
 
