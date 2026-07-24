@@ -94,15 +94,15 @@ Initial user archetypes will be developed separately. The design must at least s
 
 For species `s`, location `i`, and time `t`:
 
-$$
+```math
 V_{s,i,t} = \frac{m_{s,i,t} a_{s,i,t}^{2} p_{s,i,t}^{v_{s,i,t}}}{-\log(p_{s,i,t})}.
-$$
+```
 
 with
 
-$$
+```math
 m_{s,i,t}=M_{s,i,t}/H_{i,t}, \qquad M_{s,i,t}=\bar n_{s,i,t}L_{s,i,t}.
-$$
+```
 
 Here `H` is human population or density, `L` is maximum effective larval habitat, and `n_bar` is average adult mosquitoes per unit larval habitat, described through a dynamic aquatic/adult-stage model.
 
@@ -123,9 +123,9 @@ The package does not emit "effective" single-species-equivalent parameters (one 
 
 VCI is the proportional change in capacity between two named scenarios, a **reference** and an **alternative**:
 
-$$
+```math
 VCI = 1 - \frac{V_{\text{alt}}}{V_{\text{ref}}}, \qquad VCI_{pct}=100\times VCI.
-$$
+```
 
 The comparison is deliberately general: reference and alternative may be any two scenarios. The common and most interpretable case is a no-intervention (or status-quo) reference against an intervention alternative, and that case should be prominent in the documentation and examples — but the same machinery serves, for instance, two intervention packages compared against each other, or two non-intervention futures (e.g. under different climate assumptions). Both scenarios are computed by the same capacity calculation; only which one is named the reference differs.
 
