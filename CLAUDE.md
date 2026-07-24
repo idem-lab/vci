@@ -72,6 +72,19 @@ We minimise dependencies and strongly prefer well-used, stable ones:
 - Use `Imports:` for runtime deps, `Suggests:` for things used only in tests,
   vignettes, or examples. Add via `usethis::use_package()`.
 
+**Within-project (sibling-repo) dependencies.** This package consumes outputs from
+sibling repositories — e.g. `mosmicrosim`, `va_multispecies_sdm` — maintained by
+the same people who maintain `vci`. When `vci` needs something those packages do
+not yet produce, changing the upstream output is often better than a workaround
+here. But do not act across repositories on your own:
+- Prefer an upstream change over a workaround when it would be cleaner.
+- Open an issue **in `vci`** describing the needed change, with enough
+  self-contained context that someone working in the other repo, without knowledge
+  of `vci`, could implement it.
+- **Then ask a human before opening an issue in the other repository. Human
+  approval is always required before you open an issue in any repo other than
+  `vci`.**
+
 ## Code style & linting
 
 - Follow the **tidyverse style guide** (https://style.tidyverse.org).
