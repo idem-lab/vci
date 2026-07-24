@@ -174,6 +174,8 @@ Declared incompatibility remains available for combinations that are dimensional
 
 Proposed component types, grouped by execution stage (§6.0). Each is a slot a preset fills with one implementation; the maths-spec section that defines the quantity is cited for reference, and the maths spec ([`MATHEMATICAL_SPEC_WORKING.md`](MATHEMATICAL_SPEC_WORKING.md)) is authoritative for what each produces.
 
+Every component is evaluated **per species**: it computes its quantity for a given species (as well as per location and time), and capacity is built per species and summed (§5.2). Species-specific inputs — attraction weights, microclimate responses, biting profiles, and so on — enter the relevant components accordingly.
+
 **Intervention-independent** (computed once per comparison, §6.0):
 
 - `microclimate` — species-specific microclimate driving the temperature-dependent components (maths spec §7);
@@ -197,10 +199,10 @@ Proposed component types, grouped by execution stage (§6.0). Each is a slot a p
 
 **Cross-cutting:**
 
-- `uncertainty_engine` — propagation of uncertainty by draws or ensemble (representation is #20);
+- `uncertainty_engine` — propagation of uncertainty by draws or ensemble (the representation is not yet fixed);
 - `vector_competence` — optional/future.
 
-Species enter only as a dimension: capacity is computed per species and summed (§5.2). There is deliberately no `species_composition` or `species_aggregation` component — allocating abundance to species is upstream input preparation, and the sum is fixed engine logic, not a swappable model. The earlier flat list also carried a single `human_biting` type (now split into `attempted_feeding_rate` `a*` and `successful_feeding` `a`, since the two differ and `a` is squared in capacity) and separate `intervention_deterrence` / `intervention_barrier` / `intervention_killing` types (now the one `intervention_effect`, since the maths spec has a single intervention model produce `R`, `B`, `Kᵉ` together with no generic per-channel combination rule).
+There is deliberately no `species_composition` or `species_aggregation` component — allocating abundance to species is upstream input preparation, and the per-species sum is fixed engine logic, not a swappable model. The earlier flat list also carried a single `human_biting` type (now split into `attempted_feeding_rate` `a*` and `successful_feeding` `a`, since the two differ and `a` is squared in capacity) and separate `intervention_deterrence` / `intervention_barrier` / `intervention_killing` types (now the one `intervention_effect`, since the maths spec has a single intervention model produce `R`, `B`, `Kᵉ` together with no generic per-channel combination rule).
 
 ### 6.2 Presets
 
