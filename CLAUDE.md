@@ -136,6 +136,27 @@ Populate this from the actual session. The full prompt-by-prompt record is
 captured automatically in `dev/sessions/` (see below); this section is the
 executive summary.
 
+## Flag AI-authored GitHub content as Claude
+
+Agents act with a maintainer's GitHub credentials, so anything you post — issues,
+PR descriptions, comments — appears under a human's identity by default. On a
+project whose point is to make the AI role transparent, that is the wrong default:
+a reader cannot tell your text from the human's, and the two sit in the same
+threads.
+
+So prefix every issue, PR description, or comment you author with this notice as
+its first line (substitute the account you are posting from):
+
+```
+> 🤖 **Posted by Claude (Opus 4.8)**, an AI coding agent, from the **@<account>** account — not written by a human.
+```
+
+- This applies to text an agent authors, never to text a human types. Do not
+  annotate a maintainer's own comments.
+- It covers GitHub-native surfaces only. Commits are attributed through the
+  `Co-Authored-By: Claude` trailer instead (see Branch & PR conventions), not by
+  editing file contents.
+
 ## Gotchas
 
 <!-- Add institutional knowledge here as it surfaces: things that look
