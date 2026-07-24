@@ -1227,3 +1227,67 @@ Susceptibility map is clear now — off-white (0%) → purple (100%), consistent
 
 The VCI teal is more saturated now. All final figure tweaks are in. Let me re-format, re-lint, re-check, and re-render the preview:
 
+## assistant
+
+Done — updated preview above. The changes:
+- **Susceptibility replaces resistance**: now "Pyrethroid susceptibility", off-white (0%) → purple (100%), so purple = high susceptibility = more protection (consistent with LLIN's near-white = less protection).
+- **VCI teal** more saturated (`#00897b`).
+
+Check is still **0/0/0**, 0 lints.
+
+That's everything you've flagged: figures finalised, `patchwork` in Suggests, README left alone, commit plan approved. I'm ready to open the draft PR closing #45 with the 8 thematic commits we agreed.
+
+Since you'd asked to check before the PR — this is the last look. **Give me the word and I'll build the commits and open the draft PR.**
+
+## user
+
+go ahead and open the PR.
+
+## assistant
+
+On it. Let me first survey the full set of changes and the generated files so I can stage them into clean thematic commits:
+
+## assistant
+
+All surveyed. I'll build the 8 thematic commits, writing `NAMESPACE` incrementally so each commit's exports match the functions it introduces (rather than dumping the full NAMESPACE up front). Starting with the scaffolding — NAMESPACE at this point exports nothing yet:
+
+## assistant
+
+Commit 2 — the capacity kernel. NAMESPACE gains its three exports:
+
+## assistant
+
+Commit 3 — host-choice assembly and the intervention stub:
+
+## assistant
+
+Commit 4 — the input contract:
+
+## assistant
+
+Commit 5 — the Rwanda dataset (no NAMESPACE change; the gitignored rasters stay out):
+
+## assistant
+
+No rasters staged — just the script, docs, and the small `.rda`. Commit 6 — the scenario pipeline (NAMESPACE now complete):
+
+## assistant
+
+Commit 7 — the vignette and integration test:
+
+## assistant
+
+Commit 8 — the session log. Let me confirm the tree is otherwise clean first:
+
+## assistant
+
+Tree is clean except the session log, and the final NAMESPACE matches `document()` exactly — the incremental staging landed correctly. Commit 8, the session log:
+
+## assistant
+
+All eight commits are clean and thematic. Now the PR body (with the required AI-authorship banner, "How this was produced" section, and `Fixes #45`), then push and open as draft:
+
+## assistant
+
+Draft PR **#65** is open: https://github.com/idem-lab/vci/pull/65
+
