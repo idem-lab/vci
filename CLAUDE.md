@@ -113,7 +113,8 @@ stop and surface the blocker rather than papering over it.
 
 We use the `usethis` pull-request flow:
 - Start work with `usethis::pr_init("branch-name")` — always a feature branch,
-  never commit to `main`.
+  never commit to `main` (the sole exception is session-log-only commits — see
+  Session logs below).
 - Branch names: short, hyphenated, descriptive, prefixed with the issue where
   useful, e.g. `iss42-parser-edge-cases`.
 - Push / open the PR with `usethis::pr_push()`. **Open as a draft** while work
@@ -139,6 +140,11 @@ carried by a PR if it was produced on that PR's branch, so:
   a log that no PR picks up. The Stop hook flags any such orphan at end of turn;
   clear it with `.claude/hooks/sweep-session-logs.sh`, run from the branch the log
   belongs to.
+- **Session-log commits are the one thing you may push straight to `main`.** They
+  are auto-generated provenance with nothing to review, so they are exempt from
+  the PR-only rule. Run the sweep on `main` and it commits the logs and pushes
+  them directly — no PR, no ceremony. The exemption covers *only* commits that
+  touch nothing but `dev/sessions/`; anything else still lands via a reviewed PR.
 - Never hand-edit a session log — the hook owns them, and hand-editing has
   corrupted one before. If content needs preserving, commit the file as-is.
 
@@ -146,7 +152,9 @@ carried by a PR if it was produced on that PR's branch, so:
 
 - Only work an issue that is **assigned to you**. If an issue is unassigned,
   assign it before starting so we don't both point agents at the same one.
-- Never push directly to `main`; everything lands via reviewed PR.
+- Never push directly to `main`; everything lands via reviewed PR — except
+  session-log-only commits, which have nothing to review and may be pushed
+  straight to `main` via the sweep (see Session logs).
 - Neither of us merges our own agent's PR blind — a human reviews every PR,
   including each other's Claude-generated ones.
 

@@ -102,7 +102,9 @@ contribution reviewable:
    decisions or trade-offs the agent made or asked about, any new dependencies
    and why, and a link to the session log.
 3. **Every pull request is reviewed by a human**, including each maintainer's own
-   agent-generated PRs. Nothing is pushed to `main` directly.
+   agent-generated PRs. Nothing that changes the package reaches `main` without
+   review — the only commits pushed to `main` directly are the auto-generated
+   session logs themselves, which carry no reviewable content.
 4. **Work is test-first.** Behaviour is specified by a failing `testthat` test
    before it is implemented, so the tests — not the agent's narrative — are what
    the review checks against.
