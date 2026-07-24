@@ -130,8 +130,7 @@ carried by a PR if it was produced on that PR's branch, so:
 - **Minimise time on `main`.** Do substantive work — including a discussion that
   is clearly heading toward a branch — on a feature branch, not `main`, so its
   log has a PR to travel with. The only turns that belong on `main` are merging
-  and syncing; keep them brief. (There is no long-lived "dwell" branch; the
-  active feature branch is where you dwell.)
+  and syncing; keep them brief.
 - **Commit the branch's log before marking the PR ready.** An uncommitted log
   means the prompts behind the change never reach the reviewer. The `session-log`
   CI check is advisory — it *warns*, it does not fail (see #52) — so this is on
