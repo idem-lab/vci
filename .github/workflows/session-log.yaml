@@ -1,13 +1,15 @@
-# Fails a pull request that does not add a Claude Code session log.
+# Advisory reminder that a pull request carries a Claude Code session log.
 #
 # The prompts behind an agent-produced change are meant to travel with the
-# change (see README, "The role of AI in this package"). The Stop hook writes
-# the log continuously, but nothing stages it, so the omission is silent
-# without this check.
+# change (see README, "The role of AI in this package"). The per-branch Stop
+# hook writes a branch's log at the end of a turn, so a PR opened during the
+# turn that created its branch has no log yet; the log lands a commit later.
+# This check therefore only *warns* when a log is missing — it does not fail —
+# so it does not go red on every single-turn PR (see #52).
 #
 # Human-authored PRs have no session log. Add the `no-session-log` label to
-# skip the check, which makes "this was written by a person" an explicit,
-# visible claim rather than a silent absence.
+# skip the check entirely, which makes "this was written by a person" an
+# explicit, visible claim rather than a silent absence.
 
 name: session-log
 
@@ -31,8 +33,7 @@ jobs:
             | grep -qE '^dev/sessions/.+\.md$'; then
             echo "Session log present."
           else
-            echo "::error::No session log found in dev/sessions/."
-            echo "Commit the log written by the Stop hook, or add the"
-            echo "'no-session-log' label if this PR was written by a human."
-            exit 1
+            echo "::warning::No session log in dev/sessions/ yet."
+            echo "The per-branch Stop hook commits it at the end of the turn;"
+            echo "commit it before marking the PR ready. Advisory only — see #52."
           fi
