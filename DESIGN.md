@@ -42,6 +42,7 @@ Two workloads are representative, and both use the same array structures (§7.1.
 - **Uncertainty-aware:** supports draws or ensembles and propagates uncertainty through derived quantities.
 - **Accessible:** high-level workflows for analysts, lower-level component APIs for modellers, and a stable engine suitable for dashboard integration.
 - **Open and extensible:** public development, permissive open-source licensing subject to project approval, FAIR-aligned outputs, contributor documentation, and stable extension interfaces.
+- **Idiomatic and minimal:** the implementation stays as small and as conventional for R users and developers as the design allows. Prefer the mechanisms an R package already provides (function documentation, signatures, `NAMESPACE`, lifecycle badges) over bespoke machinery, and prefer functions from well-established, well-maintained packages — `sf` and `terra` for spatial data in particular — over re-implementing them, unless there is a specific reason (performance, stability, licensing) to do otherwise. This is a design constraint, not only a coding-style preference: it bounds what the package builds. See the dependency policy in `CLAUDE.md`; surface any borderline dependency decision to a human.
 
 ## 3. Users and primary jobs
 
@@ -96,45 +97,44 @@ For species `s`, location `i`, and time `t`:
 V_{s,i,t} = \frac{m_{s,i,t} a_{s,i,t}^{2} p_{s,i,t}^{v_{s,i,t}}}{-\log(p_{s,i,t})}.
 \]
 
-The whiteboard writes the species form as `V_s = m_s a_s^2 p_s^v / -ln(p_s)` and defines:
+with
 
 \[
 m_{s,i,t}=M_{s,i,t}/H_{i,t}, \qquad M_{s,i,t}=\bar n_{s,i,t}L_{s,i,t}.
 \]
 
-Here `H` is human population or density, `L` is larval habitat availability/scale, and `n_bar` is average adult mosquitoes per unit larval habitat. The notes also describe `n_bar` through a dynamic aquatic/adult-stage model. Exact discrete-time equations and symbols require scientific review against the whiteboard before implementation.
+Here `H` is human population or density, `L` is maximum effective larval habitat, and `n_bar` is average adult mosquitoes per unit larval habitat, described through a dynamic aquatic/adult-stage model.
+
+**The maths spec is authoritative for the model.** [`MATHEMATICAL_SPEC_WORKING.md`](MATHEMATICAL_SPEC_WORKING.md) is the reviewed, formalised transcription of the original notation and is the single source of truth for every equation, symbol, and parameter. The forms shown in this section are an orientation for the reader; where this document and the maths spec differ, the maths spec wins, and implementation follows it (not this section). The maths spec also adds terms not shown here, notably the human-to-mosquito infection probability `c` (maths spec §1).
 
 ### 5.2 Multiple species
 
-The project documents describe overall capacity as the sum of species-specific contributions. The implementation must not ambiguously apply species fractions twice. It must support and distinguish:
+Vectorial capacity is always modelled per species and then summed: `V = sum_s V_s`. There is a single path — species-specific abundance in, species-specific capacity computed, capacities summed — which prevents species composition from being applied twice by construction, rather than by validating against it.
 
-- absolute species abundance inputs, where `V = sum_s V_s`;
-- total abundance plus species fractions, where species abundance is first allocated by fractions and then summed;
-- model-specific aggregation required by single-species downstream models.
+This subsumes the cases earlier drafts treated separately:
+
+- **Total abundance with species fractions** is input preparation, not a modelling mode: allocate abundance to species (`M · f_s`) before it enters the model, upstream or via a thin helper. It is never a second aggregation step inside the engine.
+- **Single-species use** is simply one species in scope.
+
+The package does not emit "effective" single-species-equivalent parameters (one `a`, `p`, `m` standing for a multi-species community). Collapsing several species into one parameter set is a nonlinear, lossy reduction (maths spec §8), distinct from summing capacities. A downstream single-species model consumes per-species outputs and performs its own reduction if it needs one.
 
 ### 5.3 Vector control impact
 
-For reference scenario `0` and intervention scenario `1`:
+VCI is the proportional change in capacity between two named scenarios, a **reference** and an **alternative**:
 
 \[
-VCI = 1 - \frac{V_1}{V_0}, \qquad VCI_{pct}=100\times VCI.
+VCI = 1 - \frac{V_{\text{alt}}}{V_{\text{ref}}}, \qquad VCI_{pct}=100\times VCI.
 \]
 
-The API must permit status quo, no-intervention, or another scenario as the reference and label that choice in output metadata. It must warn when the reference is zero or effectively zero and define behaviour for increases in capacity (`VCI < 0`).
+The comparison is deliberately general: reference and alternative may be any two scenarios. The common and most interpretable case is a no-intervention (or status-quo) reference against an intervention alternative, and that case should be prominent in the documentation and examples — but the same machinery serves, for instance, two intervention packages compared against each other, or two non-intervention futures (e.g. under different climate assumptions). Both scenarios are computed by the same capacity calculation; only which one is named the reference differs.
+
+The reference choice must be recorded in output metadata. The package must warn when the reference is zero or effectively zero, and define behaviour for increases in capacity (`VCI < 0`); see #19.
 
 ### 5.4 Candidate v1 component equations
 
-The draft notes and whiteboard indicate:
+The candidate v1 component equations are specified in [`MATHEMATICAL_SPEC_WORKING.md`](MATHEMATICAL_SPEC_WORKING.md), which is authoritative. That document is the v1 candidate equation set — host encounter and redistribution, the repellency/barrier/killing decomposition of intervention effects, the successful-feeding rate, the mortality-hazard formulation of survival, and parasite development. This section previously restated an earlier, superseded version of those relationships and is not repeated here to avoid a second source that can drift.
 
-- human availability: `N_in = H * I`, `N_out = H * (1-I)`;
-- indoor/outdoor/non-human encounter probabilities are normalised functions of host availability and species preferences;
-- intervention-adjusted human biting combines indoor and outdoor opportunities, with indoor barrier/repellency effects;
-- adult survival combines climate-dependent baseline survival with feeding, indoor encounter, and killing effects;
-- larval habitat is baseline availability modified by larval source management;
-- climatic components of activity, aquatic development/survival, fecundity, baseline biting, survival, and parasite development are functions of species-specific microclimate;
-- intervention effects may use multiplicative residual-effect terms such as `1 - gamma * coverage`, grouped by repellency (`R`), barrier (`B`), killing (`K`), and larval-source-management effects.
-
-These are **candidate v1 equations**, not frozen requirements. Every implemented formula requires a signed-off equation, parameter definition, domain, unit, source, and test fixture.
+Every implemented formula still requires a signed-off equation, parameter definition, domain, unit, source, and independently-computed test case (§10.2). The maths spec's own open items (its §22) are the record of what remains to be settled.
 
 ## 6. Component architecture
 
@@ -151,27 +151,25 @@ The requirement is as much about correctness as speed. Uncertainty draws must be
 
 This split also gives the natural boundary for caching and for chunked evaluation of large rasters (§11).
 
-### 6.1 Registry
+### 6.1 Components and their metadata
 
-Each component implementation is registered with:
+A component is **an ordinary R function**: a vectorised operation over arrays (§7.1.1) whose formal arguments are its inputs and whose return value is its output. There is no separate registry object storing a parallel copy of each component's metadata. Duplicated metadata drifts from the code it describes; instead, the description *is* the standard R package apparatus, and tests keep it honest.
 
-- `component_type`;
-- `implementation_id` and semantic version;
-- citation/source;
-- equations or algorithm reference;
-- required and optional inputs;
-- output names, units, dimensions, and valid ranges;
-- assumptions and known limitations;
-- execution stage: intervention-independent or intervention-dependent (§6.0);
-- declared incompatibilities, as an exception only (see below);
-- uncertainty support;
-- maturity: `experimental`, `candidate`, `stable`, or `deprecated`.
+The information an earlier draft proposed to register maps onto mechanisms an R package already has:
 
-A component is defined by its **declared inputs and outputs**, named against the shared variable dictionary (§7.2), together with the parameter definitions it requires. That declaration is the interface: it is what the registry stores, what the engine dispatches on, and what the extension guide (§12) documents. An implementation is a vectorised function over arrays (§7.1.1) plus its registration record.
+- **inputs and outputs** — the function signature. Arguments and the return value are named against canonical variables.
+- **units, dimensions, and valid ranges** — the shared variable dictionary (§7.2), one entry per canonical variable, referenced by name. This metadata lives with the *variable*, not repeated in every component that touches it.
+- **description, assumptions, equations, citation** — the function's roxygen documentation (`@description`, `@details`, `@references`), cross-referring to `ASSUMPTIONS.md` and `EQUATION_DECISIONS.md`.
+- **maturity** — a lifecycle badge (§11.3); **version** — the package version.
+- **execution stage** (intervention-independent or -dependent, §6.0) — a documented attribute of the component.
 
-Compatibility between components is therefore **derived** rather than enumerated: two components compose if what one produces satisfies what the next requires, in the right units and over the right dimensions. It is not maintained as a hand-written list of compatible pairs. With many component types and several implementations of each, a pairwise matrix would require an edit to every existing component whenever one was added, and any entry left stale would silently either block a valid combination or admit an invalid one.
+A **preset** is then a named list of component functions (§6.2), not an entry in a registry — idiomatic R, printable, each element reachable through its own help page.
 
-Declared incompatibility remains valuable for combinations that are dimensionally valid but scientifically incoherent, which cannot be detected from the declarations alone. It is **advisory**: such combinations are documented and warned about, not blocked. A user who deliberately composes a non-default set of components has taken on responsibility for its coherence, and the package's obligation is to make the consequences visible — through the warning and through hybrid labelling (§6.3) — rather than to prevent the composition. Dimensional and unit invalidity is a different matter and is still rejected outright.
+Compatibility is **derived** from signatures and the dictionary: two components compose if the variables one produces supply the variables the next requires, in the dictionary's units and dimensions. It is not a hand-maintained matrix of compatible pairs, which would need editing across every component whenever one was added and would silently rot.
+
+Because the human-readable documentation and the machine-checkable behaviour are now the same source viewed two ways, a **test suite enforces their agreement**: every documented parameter exists in the dictionary; every function argument and return is a documented, dictionary-defined variable; declared units and dimensions match what the function consumes and produces. Documentation that disagrees with the code fails the build. (This makes the dictionary, §7.2 / #7, load-bearing: unit and dimension compatibility is derived from it, since it cannot be parsed from prose.)
+
+Declared incompatibility remains available for combinations that are dimensionally valid but scientifically incoherent, which cannot be detected from signatures alone. It is **advisory**: such combinations are documented and warned about, not blocked. A user who composes a non-default set of components has taken responsibility for its coherence; the package's job is to make the consequences visible — through the warning and through hybrid labelling (§6.3) — not to prevent the composition. Dimensional and unit invalidity is different and is still rejected outright.
 
 Proposed component types:
 
@@ -398,7 +396,7 @@ Validation is pervasive (§2, §6.3, §7.4, §10.1) and the form of its failures
 
 ### 11.3 API stability
 
-Integration is invited from Phase 3 (§14), well before the stable release targeted for mid-2028. Integrators therefore need a per-function statement of stability rather than having to infer it from the version number or discover it through breakage.
+Integration is invited from Phase 4 (§14), well before the stable release targeted for mid-2028. Integrators therefore need a per-function statement of stability rather than having to infer it from the version number or discover it through breakage.
 
 Public functions carry an explicit lifecycle stage from the first release, with the whole public API marked experimental initially. Promotion to stable is a deliberate act, recorded in `NEWS.md`, and thereafter constrains what may change without a major version. The lifecycle and deprecation policy in §12 documents the guarantees each stage carries.
 
@@ -443,41 +441,51 @@ No telemetry should be enabled by default.
 
 The contractual target for the R package and most VCI outputs is 1 February 2029, but this is not a useful engineering deadline because Outputs 1.1.1 and 1.1.3 depend on a working implementation. The following internal plan is inferred:
 
-### Phase 0: specification and alignment, July–September 2026
+### Phase 0: minimal working example (milestone 0)
+
+A single end-to-end run, built first as a smoke test — before the science is signed off — to surface architecture and integration problems while they are still cheap to fix.
+
+- compute VCI for one small country at district level, comparing three scenarios: no intervention, business-as-usual (approximating current coverage), and one hypothesised alternative;
+- use mocked, locally-cached inputs — vector-biology and current-coverage rasters, GADM district boundaries, and a district×coverage table for the alternative — with no data portal or download;
+- use ballpark parameters and a clearly-labelled stub for the intervention→(R,B,K) mapping; **outputs are illustrative only and must not be read as a real analysis**;
+- retain the example as a committed, deterministic integration test.
+
+This deliberately precedes the specification work below. It exercises the input contract, capacity equation, species sum, and scenario comparison end to end, so that decisions in the later phases are informed by a working slice rather than made on paper.
+
+### Phase 1: specification and alignment, July–September 2026
 
 - approve scientific notation, candidate v1 equations, input dictionary, architecture, and licensing;
-- document outcomes of the intended early-2026 alignment meeting, or run a replacement technical alignment process if not completed;
 - define user archetypes and priority workflows;
 - create repository scaffolding, ADRs, issue taxonomy, and minimal CI.
 
-### Phase 1: executable scientific kernel, October–December 2026
+### Phase 2: executable scientific kernel, October–December 2026
 
 - implement capacity equation, species aggregation, VCI comparison, typed tabular inputs, validation, and provenance;
 - create test cases whose correct answers are worked out independently of the implementation;
 - publish an internal `0.1.0` prototype.
 
-### Phase 2: VA v1 vertical slice, January–June 2027
+### Phase 3: VA v1 vertical slice, January–June 2027
 
 - implement the first coherent `va_v1` preset, intervention schema, core intervention effects, spatial adapters, and uncertainty draws;
 - link or consume first larval-habitat products due 1 February 2027;
 - deliver at least one reproducible national example and seek partner usability feedback;
 - release public alpha/beta by June 2027.
 
-### Phase 3: downstream integration and model mapping, July–December 2027
+### Phase 4: downstream integration and model mapping, July–December 2027
 
 - support MAP national/Africa-wide prototypes and parameter cube exports;
 - complete documented mappings of OpenMalaria, malariasimulation, and EMOD components;
 - implement at least one externally verified model-aligned preset;
 - stabilise extension API and release candidate.
 
-### Phase 4: IR and comparative implementations, January–June 2028
+### Phase 5: IR and comparative implementations, January–June 2028
 
 - integrate joint genotypic/phenotypic IR outputs associated with the model paper due 1 February 2028;
 - add and verify remaining priority presets and model comparison documentation;
 - run user testing with national/TSU analysts and dashboard integrators;
 - target stable `1.0.0` by June 2028.
 
-### Phase 5: adoption, hardening, paper, and final products, July 2028–January 2029
+### Phase 6: adoption, hardening, paper, and final products, July 2028–January 2029
 
 - maintain backward compatibility, improve performance/accessibility, close evidence gaps;
 - complete software paper and release archive/DOI;
@@ -499,20 +507,19 @@ The contractual target for the R package and most VCI outputs is 1 February 2029
 
 ## 16. Decisions required
 
-1. Package name, repository, owners, governance, and licence.
-2. Canonical notation and exact v1 equations, especially adult/larval dynamics and intervention interactions.
-3. Whether `L` is a physical density, habitat index, or latent scale in each implementation.
-4. Whether and where species fractions enter abundance and aggregation.
-5. Definition of baseline/reference scenarios and expected handling of `V0 = 0`.
-6. Canonical spatial and temporal resolution of distributed default products.
-7. Default data distribution, caching, and versioning mechanism.
-8. Priority interventions and products for v1.
-9. Priority external implementation for the first equivalence preset.
-10. Uncertainty representation: draws, moments, ensembles, or a combination.
-11. Compatibility policy for hybrid component selection.
-12. Minimum viable dashboard/integration API.
-13. Accessibility, localisation, and offline-use requirements for country users.
-14. Dimension order of the core arrays, chosen to suit array-backend execution (§7.1.1).
+Open decisions are tracked as GitHub issues labelled `scientific-decision` and `infrastructure`, not in this list, so the two cannot drift. This section records only what has been *resolved* since v0.1, plus the residual items that do not yet map cleanly to an issue.
+
+**Resolved since v0.1:**
+
+- package name, repository, and licence — `vci`, `idem-lab/vci`, MIT;
+- the nature of `L` — maximum effective larval habitat: unitless, static, latent (maths spec §5), not a physical density or index;
+- where species composition enters — per-species modelling then summation, single path (§5.2);
+- compatibility policy for component selection — derived from signatures and the variable dictionary, with advisory scientific incompatibility (§6.1);
+- core in-memory representation — arrays over named dimensions (§7.1.1).
+
+**Tracked as issues** (non-exhaustive): reference scenarios and `V0 = 0` (#19); canonical resolution and default-data distribution (#21, #40); priority interventions for v1 (#22); intervention→effect mapping (#17); uncertainty representation (#20); the equation sign-off items (#6, #12, #13, #14). Array dimension order is tracked with the array-backend work (#39).
+
+**Still open, tracked separately:** the first external implementation to target for an equivalence preset; the minimum viable dashboard/integration API; and accessibility and localisation requirements for country users.
 
 ## 17. Proposed supporting repository documents
 
@@ -534,6 +541,6 @@ This draft draws on:
 
 - Vector Atlas II Investment Document, particularly Intermediate Outcome 1.1, Outputs 1.1.1–1.1.3, delivery dates, and monitoring/evaluation table.
 - `mapping_vectorial_capacity.txt`, including the Garrett-Jones decomposition and candidate component relationships.
-- `maths.jpg`, including the species-specific equation, parameter-definition box, intervention-effect groupings, and estimation notes.
+- the original handwritten equations, since transcribed, reviewed, and formalised into [`MATHEMATICAL_SPEC_WORKING.md`](MATHEMATICAL_SPEC_WORKING.md).
 
-Where the photograph or draft notes are ambiguous, this document records a design requirement or open decision rather than asserting a final equation.
+The mathematics of those original notes has been superseded as a working reference by the maths spec, which is now the single source of truth for the model (§5.1). The original photograph is not held in this repository. Where this design document and the maths spec differ, the maths spec is authoritative.
