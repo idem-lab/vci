@@ -103,6 +103,8 @@ A task is done only when all of these pass locally:
 4. `devtools::check()` — **0 errors, 0 warnings, 0 notes.** Treat any NOTE as
    something to resolve or explicitly justify in the PR.
 5. Vignettes and NEWS.md updated if the change is user-facing.
+6. `dev/sessions/` has no orphaned logs — the branch's log is committed and no
+   other branch's log is left uncommitted (run `sweep-session-logs.sh` if so).
 
 Do not open a PR with a failing check. If you cannot get to a clean check,
 stop and surface the blocker rather than papering over it.
@@ -118,10 +120,28 @@ We use the `usethis` pull-request flow:
   is in progress so CI runs without notifying reviewers; mark ready when done.
 - The PR body must contain `Fixes #<issue-number>` (or `Refs #<n>` if partial).
 - One logical change per PR. Keep them reviewable.
-- **Commit the session log before marking the PR ready.** `dev/sessions/<file>.md`
-  is rewritten by the Stop hook at the end of every turn, but is never staged for
-  you. An uncommitted log means the prompts behind the change never reach the
-  reviewer, which defeats the point. CI fails the PR if it is missing.
+
+### Session logs (keep them off the floor)
+
+The Stop hook writes one log per branch to `dev/sessions/<file>.md` at the end of
+every turn, but never stages it — committing is on you. A turn's log can only be
+carried by a PR if it was produced on that PR's branch, so:
+
+- **Minimise time on `main`.** Do substantive work — including a discussion that
+  is clearly heading toward a branch — on a feature branch, not `main`, so its
+  log has a PR to travel with. The only turns that belong on `main` are merging
+  and syncing; keep them brief. (There is no long-lived "dwell" branch; the
+  active feature branch is where you dwell.)
+- **Commit the branch's log before marking the PR ready.** An uncommitted log
+  means the prompts behind the change never reach the reviewer. The `session-log`
+  CI check is advisory — it *warns*, it does not fail (see #52) — so this is on
+  you, not the robot.
+- **Sweep whatever strands.** `main`-turns and post-merge wrap-up turns can leave
+  a log that no PR picks up. The Stop hook flags any such orphan at end of turn;
+  clear it with `.claude/hooks/sweep-session-logs.sh`, run from the branch the log
+  belongs to.
+- Never hand-edit a session log — the hook owns them, and hand-editing has
+  corrupted one before. If content needs preserving, commit the file as-is.
 
 ## Collaboration (two maintainers)
 
@@ -177,4 +197,7 @@ refactorable but aren't, generated files not to touch by hand, non-obvious
 constraints. This is some of the highest-value content in the file. -->
 - `man/` is generated — edit roxygen blocks, then `devtools::document()`.
 - `dev/sessions/` must stay in `.Rbuildignore`.
+- Session logs are per-branch and committed by you, not the hook. Work done on
+  `main` or after a merge can strand a log; the hook warns and
+  `.claude/hooks/sweep-session-logs.sh` clears it. Never hand-edit a log.
 - <add more as you hit them>
