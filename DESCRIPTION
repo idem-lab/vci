@@ -1,0 +1,30 @@
+Package: vci
+Title: Vector Control Impact Spatial Modelling
+Version: 0.0.0.9000
+Authors@R: 
+    person("Nick", "Golding", , "nick.golding.research@gmail.com", role = c("aut", "cre"))
+Description: Converts spatially varying vector biology, environment, human
+    behaviour, and intervention scenarios into vectorial capacity and
+    vector control impact, the proportional reduction in vectorial
+    capacity attributable to a set of interventions. Implements the Vector
+    Atlas 'Vector Control Impact' framework, computing vector-side
+    transmission potential and its response to control across pixel and
+    administrative-area workflows.
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+RoxygenNote: 8.0.0
+Suggests:
+    geodata,
+    ggplot2,
+    knitr,
+    patchwork,
+    rmarkdown,
+    sf,
+    terra,
+    testthat (>= 3.0.0)
+Config/testthat/edition: 3
+Depends:
+    R (>= 3.5)
+LazyData: true
+VignetteBuilder: knitr
