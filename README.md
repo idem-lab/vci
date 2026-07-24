@@ -94,9 +94,9 @@ All package development is done with local Claude Code agents (there is no
 contribution reviewable:
 
 1. **Every session is logged.** A Stop hook writes the user prompts and Claude's
-   text responses for each session to `dev/sessions/<date>-<session-id>.md`, and
-   that log is committed with the change. The prompts that produced a diff travel
-   with the diff.
+   text responses to `dev/sessions/`, one file per branch, and that log is
+   committed with the change. The prompts that produced a diff travel with the
+   diff.
 2. **Every pull request explains how it was produced.** PR descriptions carry a
    "How this was produced" section giving the issue, the core prompts, the key
    decisions or trade-offs the agent made or asked about, any new dependencies

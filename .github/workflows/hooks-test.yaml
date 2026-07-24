@@ -1,0 +1,28 @@
+# Runs the session-log hook's own test suite.
+#
+# The hook is only exercised for real by Claude Code, so its behaviour is pinned
+# by .claude/hooks/test-log-session.sh, which drives it with synthetic payloads.
+# This runs that test on any change to the hook or the test.
+
+name: hooks-test
+
+on:
+  pull_request:
+    paths:
+      - ".claude/hooks/**"
+      - ".github/workflows/hooks-test.yaml"
+  push:
+    branches: [main]
+    paths:
+      - ".claude/hooks/**"
+  workflow_dispatch:
+
+jobs:
+  hooks-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check jq is available
+        run: jq --version
+      - name: Run the session-log hook test
+        run: bash .claude/hooks/test-log-session.sh
