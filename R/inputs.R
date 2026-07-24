@@ -12,11 +12,12 @@
 #' - **`vectors`** — one row per district and species: the district- and
 #'   species-varying `abundance` (adults per human, \eqn{m}).
 #' - **`bionomics`** — one row per species: the species-level biology assumed
-#'   constant across districts (host-opportunity weights, attempted-feeding rate,
-#'   baseline mortality hazard, human-to-mosquito infection probability, and
-#'   EIP).
-#' - **`sites`** — one row per district: the district-level intervention context
-#'   (insecticide `susceptibility` and net-use `net_use`).
+#'   constant across districts (host-opportunity weights, baseline mortality
+#'   hazard, and human-to-mosquito infection probability).
+#' - **`sites`** — one row per district: the district-level context (insecticide
+#'   `susceptibility`, net-use `net_use`, and `temperature`). The
+#'   temperature-driven biting rate and EIP are derived downstream by
+#'   [compute_capacity()] via [biting_rate()] and [eip()].
 #'
 #' Validation is strict and non-imputing: required columns must be present,
 #' values must be in range, there must be no missing values in the data columns
@@ -28,10 +29,11 @@
 #' @param bionomics A data frame with one row per species and columns `species`,
 #'   `host_indoor`, `host_outdoor`, `host_animal` (non-negative host-opportunity
 #'   weights), `net_contact` (in-bed contact fraction, in \eqn{[0, 1]}),
-#'   `attempted_rate` (non-negative), `baseline_hazard` (non-negative),
-#'   `infection_probability` (in \eqn{[0, 1]}), and `eip` (positive).
+#'   `baseline_hazard` (non-negative), and `infection_probability` (in
+#'   \eqn{[0, 1]}).
 #' @param sites A data frame with columns `location_id`, `susceptibility` (in
-#'   \eqn{[0, 1]}), and `net_use` (in \eqn{[0, 1]}).
+#'   \eqn{[0, 1]}), `net_use` (in \eqn{[0, 1]}), and `temperature` (degrees
+#'   Celsius).
 #' @param geometry Optional; district geometry (for example an `sf` object)
 #'   keyed by `location_id`, carried for mapping. Not used by the calculation.
 #'
@@ -49,10 +51,12 @@
 #' bionomics <- data.frame(
 #'   species = c("gambiae", "funestus"),
 #'   host_indoor = 0.8, host_outdoor = 0.1, host_animal = 0.1,
-#'   net_contact = c(0.85, 0.78), attempted_rate = 0.333,
-#'   baseline_hazard = c(0.132, 0.112), infection_probability = 0.5, eip = 10
+#'   net_contact = c(0.85, 0.78),
+#'   baseline_hazard = c(0.132, 0.112), infection_probability = 0.5
 #' )
-#' sites <- data.frame(location_id = "d1", susceptibility = 0.3, net_use = 0.7)
+#' sites <- data.frame(
+#'   location_id = "d1", susceptibility = 0.3, net_use = 0.7, temperature = 22
+#' )
 #' vci_inputs(vectors, bionomics, sites)
 #' @export
 vci_inputs <- function(vectors, bionomics, sites, geometry = NULL) {
@@ -65,18 +69,21 @@ vci_inputs <- function(vectors, bionomics, sites, geometry = NULL) {
       "host_outdoor",
       "host_animal",
       "net_contact",
-      "attempted_rate",
       "baseline_hazard",
-      "infection_probability",
-      "eip"
+      "infection_probability"
     ),
     "bionomics"
   )
-  check_columns(sites, c("location_id", "susceptibility", "net_use"), "sites")
+  check_columns(
+    sites,
+    c("location_id", "susceptibility", "net_use", "temperature"),
+    "sites"
+  )
 
   check_no_na(vectors$abundance, "abundance")
   check_no_na(sites$susceptibility, "susceptibility")
   check_no_na(sites$net_use, "net_use")
+  check_no_na(sites$temperature, "temperature")
 
   check_non_negative(vectors$abundance, "abundance")
   check_probability(sites$susceptibility, "susceptibility")
@@ -85,10 +92,8 @@ vci_inputs <- function(vectors, bionomics, sites, geometry = NULL) {
   check_non_negative(bionomics$host_outdoor, "host_outdoor")
   check_non_negative(bionomics$host_animal, "host_animal")
   check_probability(bionomics$net_contact, "net_contact")
-  check_non_negative(bionomics$attempted_rate, "attempted_rate")
   check_non_negative(bionomics$baseline_hazard, "baseline_hazard")
   check_probability(bionomics$infection_probability, "infection_probability")
-  check_positive(bionomics$eip, "eip")
 
   unknown_species <- setdiff(unique(vectors$species), bionomics$species)
   if (length(unknown_species) > 0) {

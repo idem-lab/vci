@@ -109,6 +109,22 @@ species_map <- function(sp, high) {
   )
 ```
 
+### Temperature
+
+Annual mean temperature (WorldClim) sets the altitude gradient. It drives the
+biting rate ([`biting_rate()`]) and the extrinsic incubation period
+([`eip()`]) via simple Brière thermal responses, so the cool, high-altitude
+north (around the volcanoes) has slower biting and much slower parasite
+development — and hence far lower vectorial capacity, matching the low malaria
+burden there.
+
+```{r fig-temperature, fig.width = 6, fig.height = 4.4}
+district_map(inputs$sites, "temperature",
+  low = "#4575b4", high = "#d73027", legend = "°C"
+) +
+  labs(title = "Annual mean temperature")
+```
+
 ### Intervention context
 
 Net use and insecticide susceptibility, both on a 0–100% scale and coloured so
@@ -232,6 +248,11 @@ district_map(vci_alt, "vci_percent",
   *equal-host-availability* assumption — `Q0` is treated as preference. This is a
   simplification adopted deliberately for the smoke test, not a modelling
   commitment.
+- **Temperature responses.** Biting rate and EIP use illustrative Brière fits
+  for *An. gambiae* (Mordecai et al. 2013; Villena et al. 2022), applied to all
+  species. They give the altitude gradient its bite but are not a validated
+  parameterisation. Abundance's own temperature dependence is already baked into
+  the abundance layer.
 - **Abundance cancels.** Because the interventions here change survival and
   feeding but not abundance, absolute abundance cancels out of VCI. Only the
   capacity maps depend on it; the VCI maps do not.

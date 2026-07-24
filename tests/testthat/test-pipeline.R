@@ -11,15 +11,14 @@ make_two_district_inputs <- function() {
     host_outdoor = c(0.09, 0.12),
     host_animal = c(0.08, 0.06),
     net_contact = c(0.85, 0.78),
-    attempted_rate = c(1 / 3, 1 / 3),
     baseline_hazard = c(0.132, 0.112),
-    infection_probability = c(0.5, 0.5),
-    eip = c(10, 10)
+    infection_probability = c(0.5, 0.5)
   )
   sites <- data.frame(
     location_id = c("d_resistant", "d_susceptible"),
     susceptibility = c(0.15, 0.90),
-    net_use = c(0.8, 0.8)
+    net_use = c(0.8, 0.8),
+    temperature = c(25, 25)
   )
   vci_inputs(vectors, bionomics, sites)
 }

@@ -11,3 +11,7 @@
   illustrative intervention mapping).
 * Added `vci_inputs()`, the district-level input contract, and the
   `compute_capacity()` / `vci_by_scenario()` pipeline that runs scenarios over it.
+* Added temperature-dependent `biting_rate()` and `eip()` (illustrative Brière
+  thermal responses), and drove them from a WorldClim temperature layer in the
+  Rwanda example so cool, high-altitude districts show low vectorial capacity
+  (#64).

@@ -10,15 +10,14 @@ make_valid_inputs <- function() {
     host_outdoor = c(0.1, 0.1),
     host_animal = c(0.1, 0.1),
     net_contact = c(0.85, 0.78),
-    attempted_rate = c(0.333, 0.333),
     baseline_hazard = c(0.132, 0.112),
-    infection_probability = c(0.5, 0.5),
-    eip = c(10, 10)
+    infection_probability = c(0.5, 0.5)
   )
   sites <- data.frame(
     location_id = c("d1", "d2"),
     susceptibility = c(0.3, 0.6),
-    net_use = c(0.7, 0.5)
+    net_use = c(0.7, 0.5),
+    temperature = c(24, 21)
   )
   list(vectors = vectors, bionomics = bionomics, sites = sites)
 }

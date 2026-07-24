@@ -13,11 +13,12 @@ vci_inputs(vectors, bionomics, sites, geometry = NULL)
 \item{bionomics}{A data frame with one row per species and columns \code{species},
 \code{host_indoor}, \code{host_outdoor}, \code{host_animal} (non-negative host-opportunity
 weights), \code{net_contact} (in-bed contact fraction, in \eqn{[0, 1]}),
-\code{attempted_rate} (non-negative), \code{baseline_hazard} (non-negative),
-\code{infection_probability} (in \eqn{[0, 1]}), and \code{eip} (positive).}
+\code{baseline_hazard} (non-negative), and \code{infection_probability} (in
+\eqn{[0, 1]}).}
 
 \item{sites}{A data frame with columns \code{location_id}, \code{susceptibility} (in
-\eqn{[0, 1]}), and \code{net_use} (in \eqn{[0, 1]}).}
+\eqn{[0, 1]}), \code{net_use} (in \eqn{[0, 1]}), and \code{temperature} (degrees
+Celsius).}
 
 \item{geometry}{Optional; district geometry (for example an \code{sf} object)
 keyed by \code{location_id}, carried for mapping. Not used by the calculation.}
@@ -40,11 +41,12 @@ value is duplicated across keys it does not depend on:
 \item \strong{\code{vectors}} — one row per district and species: the district- and
 species-varying \code{abundance} (adults per human, \eqn{m}).
 \item \strong{\code{bionomics}} — one row per species: the species-level biology assumed
-constant across districts (host-opportunity weights, attempted-feeding rate,
-baseline mortality hazard, human-to-mosquito infection probability, and
-EIP).
-\item \strong{\code{sites}} — one row per district: the district-level intervention context
-(insecticide \code{susceptibility} and net-use \code{net_use}).
+constant across districts (host-opportunity weights, baseline mortality
+hazard, and human-to-mosquito infection probability).
+\item \strong{\code{sites}} — one row per district: the district-level context (insecticide
+\code{susceptibility}, net-use \code{net_use}, and \code{temperature}). The
+temperature-driven biting rate and EIP are derived downstream by
+\code{\link[=compute_capacity]{compute_capacity()}} via \code{\link[=biting_rate]{biting_rate()}} and \code{\link[=eip]{eip()}}.
 }
 
 Validation is strict and non-imputing: required columns must be present,
@@ -61,10 +63,12 @@ vectors <- data.frame(
 bionomics <- data.frame(
   species = c("gambiae", "funestus"),
   host_indoor = 0.8, host_outdoor = 0.1, host_animal = 0.1,
-  net_contact = c(0.85, 0.78), attempted_rate = 0.333,
-  baseline_hazard = c(0.132, 0.112), infection_probability = 0.5, eip = 10
+  net_contact = c(0.85, 0.78),
+  baseline_hazard = c(0.132, 0.112), infection_probability = 0.5
 )
-sites <- data.frame(location_id = "d1", susceptibility = 0.3, net_use = 0.7)
+sites <- data.frame(
+  location_id = "d1", susceptibility = 0.3, net_use = 0.7, temperature = 22
+)
 vci_inputs(vectors, bionomics, sites)
 }
 \references{

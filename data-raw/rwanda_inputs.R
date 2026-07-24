@@ -14,7 +14,7 @@ library(terra)
 
 raw_dir <- "data-raw/raw"
 species <- c("gambiae", "arabiensis", "funestus") # primary three (issue #45)
-attempted_rate <- 1 / 3 # blood-meal rate a* per day (malariasimulation), all three
+reference_biting_rate <- 1 / 3 # nominal a* used only to recover m from the m*a layer
 
 # --- district boundaries: GADM admin-2 (Rwanda has 30 districts) --------------
 rwanda <- geodata::gadm("RWA", level = 2, path = raw_dir)
@@ -24,6 +24,8 @@ district_id <- rwanda$NAME_2
 abundance_r <- rast(file.path(raw_dir, "species_abundance.tif"))[[species]]
 susceptibility_r <- rast(file.path(raw_dir, "ir_2024_susceptibility.tif"))
 net_use_r <- rast(file.path(raw_dir, "net_use_cube.tif"))[["nets_2024"]] # BAU = latest year
+# annual mean temperature: WorldClim monthly averages, meaned over the year
+temperature_r <- mean(geodata::worldclim_country("RWA", "tavg", path = raw_dir))
 
 # --- area-weighted district means (exact = TRUE handles coarse cells) ---------
 district_mean <- function(r) {
@@ -39,25 +41,29 @@ district_mean <- function(r) {
 abundance_d <- district_mean(abundance_r)
 susceptibility_d <- district_mean(susceptibility_r)[[1]]
 net_use_d <- district_mean(net_use_r)[[1]]
+temperature_d <- district_mean(temperature_r)[[1]]
 
 # --- vectors table: one row per district x species ----------------------------
 # The abundance raster is proportional to the human biting rate, i.e. to m * a
 # (adults per human times the human blood-feeding rate), not to m alone. Recover
-# adults per human m by dividing out the feeding rate. At baseline (no
-# intervention) the successful rate a is approximately the attempted rate a*, so
-# we divide by a* here; this lifts m — and hence vectorial capacity — by ~3x.
+# adults per human m by dividing out a nominal reference biting rate. The
+# temperature-dependence of biting and EIP is added downstream in
+# compute_capacity() (via biting_rate() and eip()), not baked in here.
 vectors <- data.frame(
   location_id = rep(district_id, times = length(species)),
   species = rep(species, each = length(district_id)),
-  abundance = as.vector(as.matrix(abundance_d)) / attempted_rate,
+  abundance = as.vector(as.matrix(abundance_d)) / reference_biting_rate,
   row.names = NULL
 )
 
 # --- sites table: one row per district ----------------------------------------
+# temperature drives biting rate and EIP; it accounts for the altitude gradient
+# (e.g. cool, high Burera in the north), which abundance alone does not (#64).
 sites <- data.frame(
   location_id = district_id,
   susceptibility = susceptibility_d,
   net_use = net_use_d,
+  temperature = temperature_d,
   row.names = NULL
 )
 
@@ -88,10 +94,8 @@ bionomics <- data.frame(
   host_outdoor = malariasim$q0 * (1 - malariasim$phi_indoors),
   host_animal = 1 - malariasim$q0,
   net_contact = malariasim$phi_bednets,
-  attempted_rate = attempted_rate, # blood_meal_rates
   baseline_hazard = malariasim$mum, # mum is already a daily hazard
   infection_probability = 0.5, # ballpark stub (c)
-  eip = 10, # ballpark stub (nu), days
   row.names = NULL
 )
 

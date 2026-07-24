@@ -26,8 +26,10 @@ Runs the full Milestone 0 pipeline over a \link{vci_inputs} object: for each
 scenario it applies the intervention stub, assembles the successful-feeding
 rate and mortality hazard, evaluates the species-specific capacity equation,
 and sums across species to a district total. The intervention-independent
-inputs (abundance, host weights, baseline hazard, EIP) are shared across
-scenarios; only the net product and its coverage differ.
+quantities — abundance, host weights, baseline hazard, and the
+temperature-driven biting rate (\code{\link[=biting_rate]{biting_rate()}}) and EIP (\code{\link[=eip]{eip()}}) — are
+computed once and shared across scenarios; only the net product and its
+coverage differ.
 }
 \details{
 A scenario is one net product applied at the district's net use: \code{"none"}

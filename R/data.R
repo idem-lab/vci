@@ -20,18 +20,19 @@
 #'     `host_indoor`, `host_outdoor`, `host_animal` (derived from the
 #'     malariasimulation `Q0` and `phi_indoors` under an explicit
 #'     equal-host-availability assumption), `net_contact` (`phi_bednets`),
-#'     `attempted_rate`, `baseline_hazard` (`mum`), `infection_probability`, and
-#'     `eip`.}
+#'     `baseline_hazard` (`mum`), and `infection_probability`.}
 #'   \item{`sites`}{data frame, one row per district: `susceptibility` (the
-#'     pyrethroid-bioassay mortality fraction, i.e. `1 - resistance`) and
-#'     `net_use` (2024 net use, used for the business-as-usual scenario).}
+#'     pyrethroid-bioassay mortality fraction, i.e. `1 - resistance`), `net_use`
+#'     (2024 net use, used for the business-as-usual scenario), and
+#'     `temperature` (annual mean, degrees Celsius). The temperature-driven
+#'     biting rate and EIP are derived by [compute_capacity()].}
 #'   \item{`geometry`}{an `sf` object of the 30 district polygons, keyed by
 #'     `location_id`, for mapping.}
 #' }
 #'
 #' @source Built by `data-raw/rwanda_inputs.R`. District boundaries: GADM 4.1
-#'   admin-2 via the \pkg{geodata} package. Species bionomics: the
-#'   malariasimulation defaults
+#'   admin-2 and annual mean temperature (WorldClim) via the \pkg{geodata}
+#'   package. Species bionomics: the malariasimulation defaults
 #'   (\url{https://github.com/mrc-ide/malariasimulation}). Species abundance,
 #'   pyrethroid susceptibility, and net-use rasters are locally cached inputs
 #'   (not distributed with the package).

@@ -4,8 +4,10 @@
 #' scenario it applies the intervention stub, assembles the successful-feeding
 #' rate and mortality hazard, evaluates the species-specific capacity equation,
 #' and sums across species to a district total. The intervention-independent
-#' inputs (abundance, host weights, baseline hazard, EIP) are shared across
-#' scenarios; only the net product and its coverage differ.
+#' quantities — abundance, host weights, baseline hazard, and the
+#' temperature-driven biting rate ([biting_rate()]) and EIP ([eip()]) — are
+#' computed once and shared across scenarios; only the net product and its
+#' coverage differ.
 #'
 #' A scenario is one net product applied at the district's net use: `"none"`
 #' deploys nothing (coverage 0), while a net product (`"pyrethroid"` or
@@ -46,6 +48,12 @@ compute_capacity <- function(
   tab <- merge(inputs$vectors, inputs$bionomics, by = "species")
   tab <- merge(tab, inputs$sites, by = "location_id")
 
+  # Intervention-independent, temperature-driven traits: computed once and
+  # shared across scenarios (DESIGN.md section 6.0). Cool, high-altitude areas
+  # get lower biting rates and longer EIPs, and hence lower capacity.
+  attempted_rate <- biting_rate(tab$temperature)
+  eip_days <- eip(tab$temperature)
+
   one_scenario <- function(label) {
     product <- scenarios[[label]]
     coverage <- if (product == "none") 0 else tab$net_use * tab$net_contact
@@ -57,7 +65,7 @@ compute_capacity <- function(
       effect$residual_accessibility
     )
     feeding <- successful_feeding_rate(
-      tab$attempted_rate,
+      attempted_rate,
       destination$indoor,
       destination$outdoor,
       effect$indoor_survival,
@@ -66,7 +74,7 @@ compute_capacity <- function(
     )
     hazard <- mortality_hazard(
       tab$baseline_hazard,
-      tab$attempted_rate,
+      attempted_rate,
       destination$indoor,
       destination$outdoor,
       destination$animal,
@@ -79,7 +87,7 @@ compute_capacity <- function(
       tab$abundance,
       feeding,
       survival_probability(hazard),
-      tab$eip
+      eip_days
     )
     total <- tapply(capacity_species, tab$location_id, sum)
     data.frame(

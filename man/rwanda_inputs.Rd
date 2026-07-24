@@ -13,19 +13,20 @@ A \link{vci_inputs} object (a list), with:
 \code{host_indoor}, \code{host_outdoor}, \code{host_animal} (derived from the
 malariasimulation \code{Q0} and \code{phi_indoors} under an explicit
 equal-host-availability assumption), \code{net_contact} (\code{phi_bednets}),
-\code{attempted_rate}, \code{baseline_hazard} (\code{mum}), \code{infection_probability}, and
-\code{eip}.}
+\code{baseline_hazard} (\code{mum}), and \code{infection_probability}.}
 \item{\code{sites}}{data frame, one row per district: \code{susceptibility} (the
-pyrethroid-bioassay mortality fraction, i.e. \code{1 - resistance}) and
-\code{net_use} (2024 net use, used for the business-as-usual scenario).}
+pyrethroid-bioassay mortality fraction, i.e. \code{1 - resistance}), \code{net_use}
+(2024 net use, used for the business-as-usual scenario), and
+\code{temperature} (annual mean, degrees Celsius). The temperature-driven
+biting rate and EIP are derived by \code{\link[=compute_capacity]{compute_capacity()}}.}
 \item{\code{geometry}}{an \code{sf} object of the 30 district polygons, keyed by
 \code{location_id}, for mapping.}
 }
 }
 \source{
 Built by \code{data-raw/rwanda_inputs.R}. District boundaries: GADM 4.1
-admin-2 via the \pkg{geodata} package. Species bionomics: the
-malariasimulation defaults
+admin-2 and annual mean temperature (WorldClim) via the \pkg{geodata}
+package. Species bionomics: the malariasimulation defaults
 (\url{https://github.com/mrc-ide/malariasimulation}). Species abundance,
 pyrethroid susceptibility, and net-use rasters are locally cached inputs
 (not distributed with the package).
