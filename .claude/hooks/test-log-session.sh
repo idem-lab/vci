@@ -45,12 +45,19 @@ add_turn() { # role text
     '{type:$r, message:{role:$r, content:[{type:"text", text:$t}]}}' >> "$transcript"
 }
 
-run_hook() { # branch
+run_hook() { # branch  (hook stderr is the backstop warning; hush it here)
   git -C "$proj" checkout -q "$1" 2>/dev/null
   printf '%s' "$(jq -cn --arg s "$session" --arg tp "$transcript" \
     '{session_id:$s, transcript_path:$tp}')" \
-    | CLAUDE_PROJECT_DIR="$proj" bash "$hook"
+    | CLAUDE_PROJECT_DIR="$proj" bash "$hook" 2>/dev/null
   return $?
+}
+
+run_hook_out() { # branch  -> prints the hook's combined stdout+stderr
+  git -C "$proj" checkout -q "$1" 2>/dev/null
+  printf '%s' "$(jq -cn --arg s "$session" --arg tp "$transcript" \
+    '{session_id:$s, transcript_path:$tp}')" \
+    | CLAUDE_PROJECT_DIR="$proj" bash "$hook" 2>&1
 }
 
 logdir="$proj/dev/sessions"
@@ -109,6 +116,24 @@ check $? "no transcript_path -> exit 0"
 printf '%s' "$(jq -cn --arg s "$session" '{session_id:$s, transcript_path:"/no/such/file"}')" \
   | CLAUDE_PROJECT_DIR="$proj" bash "$hook"
 check $? "missing transcript file -> exit 0"
+
+echo "7. An uncommitted log from another branch triggers a sweep warning"
+# We are on main; main's log is uncommitted. Switch to the feature branch and
+# run: the hook should flag main's stranded log but not the current branch's.
+add_turn user "more feature work"
+add_turn assistant "More feature work done."
+warn_out="$(run_hook_out iss99/feature)"
+echo "$warn_out" | grep -qi "uncommitted session log"; check $? "warns about outstanding logs from other branches"
+echo "$warn_out" | grep -q -- "-main.md"; check $? "names the stranded main log"
+! echo "$warn_out" | grep -q -- "-iss99-feature.md"; check $? "does not flag the current branch's own log"
+
+echo "8. Once the logs are committed, the warning goes quiet"
+git -C "$proj" add -- "$logdir"/*.md
+git -C "$proj" commit -q -m "commit session logs"
+add_turn user "yet another turn"
+add_turn assistant "Yet another turn done."
+quiet_out="$(run_hook_out iss99/feature)"
+! echo "$quiet_out" | grep -qi "uncommitted session log"; check $? "no warning when all other logs are committed"
 
 echo
 echo "passed: $pass   failed: $fail"

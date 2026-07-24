@@ -137,4 +137,27 @@ fi
   echo "$start_date"
 } > "$state_file" 2>/dev/null || true
 
+# Backstop: surface session logs that no PR is carrying.
+#
+# This hook writes per-branch logs but never commits them; committing is folded
+# into a PR. Turns on `main` (merges, triage) and post-merge wrap-up turns have
+# no PR to carry their log, so it can strand untracked in dev/sessions/. Warn
+# (to stderr) about any *other* branch's uncommitted log — the current branch's
+# own log is expected to be uncommitted until swept, so it is excluded to avoid
+# nagging every turn. Purely advisory; must never fail the hook.
+rel_out="dev/sessions/${start_date}-${short_id}-${branch_safe}.md"
+orphans="$(
+  git -C "$project_dir" status --porcelain --untracked-files=all -- dev/sessions/ 2>/dev/null \
+    | sed 's/^...//' \
+    | grep -E '\.md$' \
+    | grep -vxF "$rel_out"
+)" || true
+if [ -n "$orphans" ]; then
+  {
+    printf '\n⚠  Uncommitted session log(s) from other branches — no PR is carrying these:\n'
+    printf '%s\n' "$orphans" | sed 's/^/     /'
+    printf '   Sweep them onto the right branch with .claude/hooks/sweep-session-logs.sh\n\n'
+  } >&2
+fi
+
 exit 0
