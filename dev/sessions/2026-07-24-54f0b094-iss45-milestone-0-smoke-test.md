@@ -1291,3 +1291,136 @@ All eight commits are clean and thematic. Now the PR body (with the required AI-
 
 Draft PR **#65** is open: https://github.com/idem-lab/vci/pull/65
 
+## assistant
+
+Done. The PR is open and healthy:
+
+## PR #65 — [Milestone 0: Rwanda district-level VCI smoke test](https://github.com/idem-lab/vci/pull/65)
+- **Draft**, base `main`, **8 thematic commits**, `Fixes #45`.
+- Body carries the AI-authorship banner and the "How this was produced" section (core prompts, key decisions, the `Suggests`-only dependencies, and the session-log path).
+- **`session-log` CI check: pass.** Local `devtools::check()` was 0/0/0; 93 assertions + the pinned integration snapshot.
+
+The eight commits, in review order:
+```
+Set up vci package scaffolding and tooling
+Add the vectorial capacity kernel
+Add host-choice assembly and the intervention stub
+Add the district-level input contract
+Add the illustrative Rwanda district dataset
+Add the scenario pipeline over vci_inputs
+Add the smoke-test vignette and integration test
+Add session log for the Milestone 0 branch
+```
+
+It's a **draft** so nothing notified reviewers loudly — it's ready for your review whenever you are. Per the project rules a human merges (not me), so once you've looked over the commits and the rendered vignette, you can mark it ready and merge.
+
+Two small notes:
+- The session log I committed captures the session up to just before this PR-opening turn; the Stop hook will write this final turn's log afterward, leaving a tiny uncommitted delta on the branch. I can fold it in with a quick `git commit` before you mark ready, or sweep it — your call.
+- Issue **#63** (survival/abundance decoupling → VCI's invariance to absolute abundance) was opened during this work and is referenced in the PR; it stays open as deliberate future work.
+
+## user
+
+Please read Issue #64, try to implement it, and roll it into that PR befroe I review and merge. See e.g. Villena et al (2022) https://doi.org/10.1002/ecy.3685 or the papers it cites for candidate simple mechanistic relationships between temperature and the two parameters we need to update.
+
+## assistant
+
+Issue #64: the smoke test predicts moderate capacity in high-altitude Burera (little real malaria) because biting rate and EIP aren't temperature-dependent — only abundance is. The fix: add a temperature raster and simple mechanistic temperature responses for **biting rate** and **EIP**. Villena et al. (2022) / Mordecai et al. (2013) give Brière thermal-response fits — exactly the "simple mechanistic relationships" to use.
+
+Let me start test-first with the two temperature-response functions:
+
+## assistant
+
+Temperature functions verified — biting_rate(26)=0.25, eip(26)=10.8 (standard), and at 16 °C (Burera-like) biting drops to 0.04 and EIP stretches to 102 days. Now wire temperature into the contract. Let me read the input contract to edit it precisely:
+
+## assistant
+
+Now update the `vci_inputs` roxygen (params + example) to match the new contract:
+
+## assistant
+
+Now the pipeline — compute `a*` and EIP from temperature (once, since they're intervention-independent):
+
+## assistant
+
+Update the `compute_capacity` roxygen to reflect temperature-driven traits:
+
+## assistant
+
+Now the data-build script — add the WorldClim temperature extraction, put temperature in `sites`, and drop the now-derived `attempted_rate`/`eip` from `bionomics`. Reading the current script:
+
+## assistant
+
+Now the edits to the data-build script. First the reference-rate rename and the temperature source:
+
+## assistant
+
+Now update the tests to the new contract. Reading test-inputs.R:
+
+## assistant
+
+Now test-pipeline.R's synthetic inputs:
+
+## assistant
+
+Now the dataset doc (R/data.R). Reading the format section:
+
+## assistant
+
+Now rebuild the dataset (fetches WorldClim temperature) and check the temperature range and Burera's capacity — the whole point of #64:
+
+## assistant
+
+Temperature works exactly as intended — coldest districts are Nyabihu (14.9 °C), Musanze, Burera (the volcanic highlands), and their capacity collapses to near-zero. Burera now ~1e-5 instead of moderate. But I need to check the VCI invariants still hold at these tiny magnitudes (risk of 0/0):
+
+## assistant
+
+All invariants hold (no NaN, VCI ∈ (0,1), dual-AI ≥ pyrethroid everywhere) — even Nyabihu is well-behaved. The intended behaviour changed, so I'll regenerate the pinned snapshot and run the full suite:
+
+## assistant
+
+110 assertions pass. The one warning is the fresh-snapshot notice; let me confirm it's clean on re-run:
+
+## assistant
+
+Clean — 110 assertions, 0 warnings. Now add a temperature input map to the vignette. Let me find the insertion point:
+
+## assistant
+
+Add a note about the temperature responses in the assumptions section:
+
+## assistant
+
+Add a NEWS bullet:
+
+## assistant
+
+Now format, lint, document, and run the full check:
+
+## assistant
+
+Check is **0/0/0**. Reinstalling with the new data and re-rendering to view the temperature map and the corrected capacity map:
+
+## assistant
+
+The capacity map now correctly shows the cool high-altitude northwest (Nyabihu/Musanze/Burera) as near-zero, with capacity concentrated in the warmer lower east and centre — exactly what #64 asked for. Let me check the temperature map:
+
+## assistant
+
+The temperature map shows the cool volcanic northwest (~15 °C) and warm east/lowlands (~21 °C) — the driver of the corrected capacity pattern. Both maps tell the right story now. Let me re-render the full vignette, then commit. First confirming the build and surveying what changed:
+
+## assistant
+
+Two thematic commits for #64. First, the temperature-response functions:
+
+## assistant
+
+Now the updated session log, then push everything to update the PR:
+
+## assistant
+
+Pushed — PR #65 now carries the #64 refinement. Let me update the PR body so it also closes #64 and documents the refinement:
+
+## assistant
+
+PR #65 now closes both **#45 and #64**. Sending the updated vignette:
+
