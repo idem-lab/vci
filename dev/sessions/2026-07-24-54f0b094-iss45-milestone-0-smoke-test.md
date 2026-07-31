@@ -1424,3 +1424,61 @@ Pushed — PR #65 now carries the #64 refinement. Let me update the PR body so i
 
 PR #65 now closes both **#45 and #64**. Sending the updated vignette:
 
+## assistant
+
+Done — issue #64 is implemented and rolled into PR #65.
+
+## What #64 needed and what I did
+The smoke test showed implausible moderate capacity in high-altitude Burera (little real malaria) because only *abundance* was temperature-aware — biting rate and EIP were constants. Following your Villena et al. (2022) / Mordecai et al. (2013) pointer, I added **Brière thermal responses**:
+
+- **`biting_rate()`** and **`eip()`** — simple mechanistic temperature responses (An. gambiae Brière fits), test-first. Biting rate peaks near the optimum and falls to 0 at the limits; EIP is ~11 days at 26 °C and lengthens steeply as it cools (→ ∞ outside the parasite-development range).
+- **Temperature is now an input**: a WorldClim annual-mean-temperature layer, extracted per district into `sites`. `compute_capacity()` derives `a*` and EIP from it once (intervention-independent). The constant `attempted_rate`/`eip` are gone from `bionomics`.
+
+**Result**: the cool volcanic northwest (Nyabihu 14.9 °C, Musanze, Burera ~16 °C) now shows **near-zero capacity**, with transmission concentrated in the warmer lower east/centre — matching the geography. VCI stays invariant to abundance, and all invariants still hold (no NaN; VCI ∈ (0,1); dual-AI ≥ pyrethroid everywhere).
+
+## Rolled into the PR
+- **3 new commits** on the branch (temperature functions; wiring into inputs/pipeline/data/vignette; session log), pushed.
+- PR #65 body updated — now **`Fixes #45` and `Fixes #64`** (confirmed: it lists both as closing issues).
+- Vignette gains a **temperature input map** and a note on the Brière responses.
+- `devtools::check()` **0/0/0**; 110 test assertions; snapshot regenerated for the intended change.
+
+The full branch is now 11 commits. It's still a **draft** and ready for your review — the two new commits sit cleanly on top of the eight you'd already approved. Whenever you've looked it over, mark it ready and merge.
+
+One small note as before: this turn's session-log delta will land after the turn, so there'll be a tiny uncommitted log change on the branch — say the word and I'll fold it in, or I can leave it for the sweep.
+
+## user
+
+I have updated the species abundance layer - the old one had a bug. It is at the same file path. Please regenerate the rwanda data, confirm the RDS object has changes, recreate the vignette, and commit and push the updated package to the PR
+
+## assistant
+
+The abundance layer was updated at the same path. Let me first capture the current data so I can confirm it actually changes, and check the new raster is in place:
+
+## assistant
+
+New raster is in place (9.2 MB, dated today; the committed `.rda` still holds the old abundance). Regenerating the dataset from it — GADM and WorldClim are cached, so only the new abundance is re-read:
+
+## assistant
+
+Confirmed changed — the `.rda` md5 differs (`38680ba…` → `fba99d2…`), abundance range dropped from 2.9–18.7 to 0.3–7.8, and the composition shifted (gambiae now ≈ arabiensis rather than arabiensis-dominated). The buggy layer is replaced. Since species composition affects aggregate VCI, I'll regenerate the pinned snapshot and run the full suite:
+
+## assistant
+
+110 pass, snapshot stable. Now the full check, then reinstall and re-render the vignette:
+
+## assistant
+
+Check 0/0/0, vignette rendered. Let me view the new abundance and capacity maps to confirm the fixed layer looks sensible before committing:
+
+## assistant
+
+Abundance maps look clean with the corrected layer (new spatial pattern, shared 0–7.8 scale). Let me confirm the capacity map, then commit:
+
+## assistant
+
+Capacity map is coherent: cool NW highlands near-zero, transmission concentrated in the warm, high-abundance south-centre (overall magnitude lower, matching the corrected layer). Committing the regenerated data:
+
+## assistant
+
+Pushed to PR #65. Sending the re-rendered vignette:
+
