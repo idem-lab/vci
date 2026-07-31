@@ -27,6 +27,28 @@ net_use_r <- rast(file.path(raw_dir, "net_use_cube.tif"))[["nets_2024"]] # BAU =
 # annual mean temperature: WorldClim monthly averages, meaned over the year
 temperature_r <- mean(geodata::worldclim_country("RWA", "tavg", path = raw_dir))
 
+# --- calibrate abundance to daily outdoor human landings ----------------------
+# The abundance layers are relative (calibrated across species and locations) but
+# are not on a daily-landing scale. Anchor them with a single multiplicative
+# constant to observed 24-h OUTDOOR human landing rates from Msugupakulya et al.
+# 2024 (Parasites & Vectors, doi:10.1186/s13071-024-06521-0, Table 2) at two
+# Kilombero Valley villages. The paper pools the villages; An. funestus is
+# endophilic (outdoor landing ~0.01/h, a poor anchor), so we calibrate on An.
+# arabiensis: outdoor 0.72 bites/person/hour x 24 h. The constant (~2.19) scales
+# all species and locations equally, so it changes absolute vectorial capacity
+# but not VCI.
+calibration_xy <- cbind(
+  lon = c(36.6839, 36.7336), # Minepa, Tulizamoyo
+  lat = c(-8.2544, -8.3669)
+)
+arabiensis_landings_24h <- 0.72 * 24
+arabiensis_px <- terra::extract(
+  abundance_r[["arabiensis"]],
+  calibration_xy
+)$arabiensis
+calibration <- mean(arabiensis_landings_24h / arabiensis_px)
+abundance_r <- abundance_r * calibration
+
 # --- area-weighted district means (exact = TRUE handles coarse cells) ---------
 district_mean <- function(r) {
   terra::extract(
@@ -44,9 +66,9 @@ net_use_d <- district_mean(net_use_r)[[1]]
 temperature_d <- district_mean(temperature_r)[[1]]
 
 # --- vectors table: one row per district x species ----------------------------
-# The abundance raster is proportional to the human biting rate, i.e. to m * a
-# (adults per human times the human blood-feeding rate), not to m alone. Recover
-# adults per human m by dividing out a nominal reference biting rate. The
+# The (now calibrated) abundance layer is daily outdoor human landings, i.e.
+# m * a (adults per human times the human blood-feeding rate), not m alone.
+# Recover adults per human m by dividing out a nominal reference biting rate. The
 # temperature-dependence of biting and EIP is added downstream in
 # compute_capacity() (via biting_rate() and eip()), not baked in here.
 vectors <- data.frame(
