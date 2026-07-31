@@ -10,3 +10,7 @@ docs/
 # Fallback location for the session-log hook's per-session state, used only when
 # the git dir cannot be located. Never commit it. (See .claude/hooks/log-session.sh.)
 dev/sessions/.state/
+
+# Rendered vignette previews (dev-only; the package build regenerates vignettes).
+dev/*.html
+dev/*_files/

@@ -1,0 +1,8 @@
+# Air (see air.toml) is this project's formatter and owns line width and
+# indentation. The line-length and indentation linters are disabled here so that
+# lintr and Air do not police the same thing and disagree; every other default
+# linter (correctness, object usage, naming, commented code, ...) stays active.
+linters: linters_with_defaults(
+    line_length_linter = NULL,
+    indentation_linter = NULL
+  )
